@@ -11,22 +11,19 @@ import (
 	"github.com/digitalocean/go-qemu/qmp"
 )
 
-var (
-	QsdBin           = "/usr/local/bin/qemu-storage-daemon"
-	QsdSDirContainer = "/qsd"
-)
-
-func QsdArgs(pathSocket string) []string {
-	return []string{
-		"--chardev",
-		fmt.Sprintf("socket,server=on,path=%s/qmp.sock,id=chardev0,nowait", pathSocket),
-		"--monitor",
-		"chardev=chardev0",
-	}
-}
-
 type VolumeManager struct {
 	Monitor *QMPMonitor
+}
+
+func NewVolumeManager(socket string) (*VolumeManager, error) {
+	if socket == "" {
+		return nil, fmt.Errorf("The socket cannot be empty")
+	}
+	q, err := CreateNewUnixMonitor(socket)
+	if err != nil {
+		return nil, err
+	}
+	return &VolumeManager{Monitor: q}, nil
 }
 
 func (v *VolumeManager) Disconnect() {
@@ -151,8 +148,7 @@ func (v *VolumeManager) CreateVolume(image, id, size string) error {
 	return nil
 }
 
-func (v *VolumeManager) ExposeVhostUser(id, path string) error {
-	vhostSock := fmt.Sprintf("%s/vhost-user.sock", path)
+func (v *VolumeManager) ExposeVhostUser(id, vhostSock string) error {
 	cmdExport := fmt.Sprintf(`{"block-export-add": "addr": "%s", "id": "%s", "node-name": "%s", "type": "vhost-user-blk"}`, vhostSock, id, id)
 	cmds := []string{
 		cmdExport,

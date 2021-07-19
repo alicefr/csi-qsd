@@ -2,7 +2,7 @@ package driver
 
 import (
 	"context"
-	"fmt"
+	"os"
 
 	"github.com/alicefr/csi-qsd/pkg/qsd"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
@@ -52,47 +52,18 @@ func (s *nodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	if isFsVol {
 		return error, status.Error(codes.InvalidArgument, "FUSE not supported yet")
 	}
-
-	// Create directory for the volume if it doesn't exists
-	dir := fmt.Sprintf("%s/%s", ImageDir, volumeID)
-	if err := os.MkDirAll(dir, 0755); err != nil {
-		return status.Error(codes.Internal, "Cannot create directory for the volume:%s", volumeID)
-	}
-
-	// Create qcow2 image
-	image := fmt.Sprintf("%s/%s", dir, "disk.img")
-	if _, err := os.Stat(image); os.IsNotExist(err) {
-		if err := volManager.CreateVolume(image, volumeID); err != nil {
-			return status.Error(codes.Internal, "Failed in creating the disk image %s:%v", volumeID, err)
-		}
-	}
-
 	// Create target directory
 	err = os.MkdirAll(req.GetTargetPath(), 0755)
 	if err != nil {
 		return status.Errorf(codes.Internal, "mkdir failed: target=%s, error=%v", req.GetTargetPath(), err)
 	}
-
-	// Expose and create vhost-user socket
-	if _, err := os.Stat(image); os.IsExist(err) {
-		if err := os.Remove(image); err != nil {
-			return status.Error(codes.Internal, "Failed in creating the disk image %s:%v", volumeID, err)
-		}
-	}
-
-	if err := volManager.ExposeVhostUser(volumeID, image); err != nil {
-		return status.Error(codes.Internal, "Failed exporting the disk image %s:%v", volumeID, err)
-	}
+	// Mount vhost-user socket dir into the target directory
 
 	return &csi.NodePublishVolumeResponse{}, nil
 
 }
 
 func (s *nodeService) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	// Delete the exporter
-
-	// Delete the qcow image
-
 	// Remove the directory
 }
 

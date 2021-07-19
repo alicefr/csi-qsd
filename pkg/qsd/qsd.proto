@@ -9,9 +9,8 @@ service QsdService {
 }
 
 message Image {
-	string path = 1;
-	string ID = 2 ;
-	optional string size = 3;
+	string ID = 1 ;
+	optional string size = 2;
 }
 
 message Response {
