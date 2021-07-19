@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package alicefr.csi.pkg.qsd;
+option go_package = "github.com/alicefr/csi-qsd/pkg/qsd";
+
+service QsdService {
+	rpc CreateVolume(Image) returns (Response) {}
+	rpc ExposeVhostUser(Image) returns (Response) {}
+}
+
+message Image {
+	string path = 1;
+	string ID = 2 ;
+	optional string size = 3;
+}
+
+message Response {
+  bool success = 1;
+  string message = 2;
+}

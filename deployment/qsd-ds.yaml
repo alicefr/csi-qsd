@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: qsd-ds
+  namespace: csi-qsd
+spec:
+  selector:
+    matchLabels:
+      name: qsd
+  template:
+    metadata:
+      labels:
+        name: qsd
+    spec:
+      containers:
+      - name: qsd
+        image: docker.io/qsd/qsd:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - protocol: TCP
+          containerPort: 4444
+          hostPort: 4444
+        volumeMounts:
+        - name: images
+          mountPath: /var/lib/images
+      volumes:
+      - name: images
+        hostPath:
+          path: /var/run/qsd
+          type: DirectoryOrCreate

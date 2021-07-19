@@ -1,0 +1,150 @@
+# Definition of CSI driver for QSD
+apiVersion: storage.k8s.io/v1beta1
+kind: CSIDriver
+metadata:
+  name: qsd.csi.com
+spec:
+ attachRequired: false
+ podInfoOnMount: true 
+ volumeLifecycleModes: #  volume modes supported by the driver.
+  - Persistent
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-qsd
+provisioner: qsd.csi.com
+parameters:
+  sc: standard # Define the backend Storage Class to use to request the PV for the image
+reclaimPolicy: Delete # The PV is automatically deleted when the PVC is deleted
+allowVolumeExpansion: false # Right now not supported, this will depend on the backing sc
+volumeBindingMode: WaitForFirstConsumer
+---
+########################################
+###########                 ############
+###########   Node plugin   ############
+###########                 ############
+########################################
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: csi-qsd-node
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: csi-qsd-node
+  template:
+    metadata:
+      labels:
+        app: csi-qsd-node
+        role: csi-qsd
+    spec:
+      priorityClassName: system-node-critical
+      serviceAccount: csi-qsd-node-sa
+      containers:
+        # Register the plugin
+        - name: csi-node-driver-registrar
+          image: quay.io/k8scsi/csi-node-driver-registrar:v1.1.0
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/qsd.csi.com/csi.sock
+          volumeMounts:
+          - name: plugin-dir
+            mountPath: /csi/
+          - name: registration-dir
+            mountPath: /registration/
+        # CSI QSD driver
+        - name: csi-qsd-plugin
+          image: qsd/driver:latest
+          imagePullPolicy: Never
+          command:
+            - /usr/bin/csi-qsd
+          args :
+            - "-node-id=$(KUBE_NODE_NAME)"
+            - "-endpoint=$(CSI_ENDPOINT)"
+            - "-dir=$(DIR_QSD)"
+            - "-qsd=$(QSD_SERVICE)"
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix:///csi/csi.sock
+            - name: DIR_QSD
+              value: /csi/qsd-volumes
+            - name: QSD_SERVICE
+              value: /var/qsd/qmp/qmp.sock
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          volumeMounts:
+           - name: plugin-dir
+             mountPath: /csi
+           - name: mountpoint-dir
+             mountPath: /var/lib/kubelet/pods
+             # needed so that any mounts setup inside this container are
+             # propagated back to the host machine.
+             mountPropagation: "Bidirectional"
+      volumes:
+        ##########################################################
+        #       Directories shared for CSI plugin                #
+        ##########################################################
+        # Directory where the driver mounts volumes for the CSI PV
+        - name: mountpoint-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+        # Directory for the plugin registration
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry/
+            type: DirectoryOrCreate
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/qsd.csi.com
+            type: DirectoryOrCreate
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: csi-qsd-node-sa
+  namespace: kube-system
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-qsd-node-driver-registrar-role
+  namespace: kube-system
+rules:
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-qsd-node-driver-registrar-binding
+subjects:
+  - kind: ServiceAccount
+    name: csi-qsd-node-sa
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: csi-qsd-node-driver-registrar-role
+  apiGroup: rbac.authorization.k8s.io
