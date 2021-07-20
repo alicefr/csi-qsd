@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -23,7 +24,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	size := req.GetCapacityRange()
 	log := d.log.WithFields(logrus.Fields{
 		"volume_name":         volumeName,
-		"storage_size_":       size,
+		"storage_size_":       size.RequiredBytes,
 		"method":              "create_volume",
 		"volume_capabilities": req.VolumeCapabilities,
 	})
@@ -32,8 +33,8 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	}
 	resp := &csi.CreateVolumeResponse{
 		Volume: &csi.Volume{
-			VolumeId: volumeName,
-			//			CapacityBytes: size,
+			VolumeId:      volumeName,
+			CapacityBytes: size.RequiredBytes,
 		},
 	}
 	log.WithField("response", resp).Info("volume was created")

@@ -3,73 +3,62 @@ package driver
 import (
 	"context"
 	"fmt"
-	"github.com/alicefr/csi-qsd/pkg/qsd"
-	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 	"net"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"sync"
+
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 )
 
-const DefaultDriverName = "qsd.csi.com"
-const version = "0.0.0"
+const (
+	DefaultDriverName = "qsd.csi.com"
+	version           = "0.0.0"
+)
+
+const (
+	SocketDir = "/var/lib/qsd/sockets"
+	vhostSock = "vhost.sock"
+)
 
 type Driver struct {
+	csi.UnimplementedControllerServer
+	csi.UnimplementedNodeServer
 	name     string
 	version  string
+	endpoint string
 	readyMu  sync.Mutex
 	ready    bool
-	endpoint string
-	storage  map[string]*qsd.Volume
-	// Path to unix QMP socket to talk to QSD
-	qmp string
+	port     string
+	storage  map[string]string
 
-	srv            *grpc.Server
-	log            *logrus.Entry
-	pathQsdVolumes string
-	nodeId         string
-	k8sclient      *client.K8sClient
+	srv    *grpc.Server
+	log    *logrus.Entry
+	nodeId string
 }
 
-func NewDriver(endpoint, driverName, sc, nodeId, dir, qmp string) (*Driver, error) {
+func NewDriver(endpoint, driverName, nodeId, port string) (*Driver, error) {
 	log := logrus.New().WithFields(logrus.Fields{
 		"endpoint": endpoint,
-		"sc":       sc,
 		"node-id":  nodeId,
 	})
-	c, err := client.NewK8sClientFromCluster()
-	if err != nil {
-		return &Driver{}, fmt.Errorf("faild creating the k8s client: %v", err)
-	}
-	log.Info("create k8s client")
 	return &Driver{
-		version:        version,
-		endpoint:       endpoint,
-		storage:        make(map[string]*qsd.Volume),
-		name:           driverName,
-		log:            log,
-		ready:          true,
-		pathQsdVolumes: dir,
-		nodeId:         nodeId,
-		k8sclient:      c,
-		qmp:            qmp,
+		version:  version,
+		endpoint: endpoint,
+		storage:  make(map[string]string),
+		name:     driverName,
+		log:      log,
+		ready:    true,
+		nodeId:   nodeId,
 	}, nil
 }
 
-func indexOf(element string, data []qsd.Volume) int {
-	for k, v := range data {
-		if element == v.ID {
-			return k
-		}
-	}
-	return -1
-}
-
 func (d *Driver) deleteVolume(id string) {
+	delete(d.storage, id)
 }
 
 func (d *Driver) Run(ctx context.Context) error {
@@ -112,7 +101,7 @@ func (d *Driver) Run(ctx context.Context) error {
 
 	d.srv = grpc.NewServer(grpc.UnaryInterceptor(errHandler))
 	csi.RegisterIdentityServer(d.srv, d)
-	//	csi.RegisterControllerServer(d.srv, d)
+	csi.RegisterControllerServer(d.srv, d)
 	csi.RegisterNodeServer(d.srv, d)
 
 	d.log.WithField("addr", addr).Info("server started")

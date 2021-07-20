@@ -2,35 +2,19 @@ package driver
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"syscall"
 
-	"github.com/alicefr/csi-qsd/pkg/qsd"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
-
-const (
-	ImageDir = "/images"
-)
-
-type nodeService struct {
-	csi.UnimplementedNodeServer
-	volManager *qsd.VolumeManager
-	nodeName   string
-}
 
 var nodeLogger = ctrl.Log.WithName("driver").WithName("node")
 
-// NewNodeService returns a new NodeServer.
-func NewNodeService(nodeName string, m *qsd.VolumeManager) csi.NodeServer {
-	return &nodeService{
-		nodeName:   nodeName,
-		volManager: m,
-	}
-}
-
-func (s *nodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
+func (s *Driver) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	volumeID := req.GetVolumeId()
 	nodeLogger.Info("NodePublishVolume called",
 		"volume_id", volumeID,
@@ -47,27 +31,50 @@ func (s *nodeService) NodePublishVolume(ctx context.Context, req *csi.NodePublis
 	if req.GetVolumeCapability() == nil {
 		return nil, status.Error(codes.InvalidArgument, "no volume_capability is provided")
 	}
-	isBlockVol := req.GetVolumeCapability().GetBlock() != nil
+	//isBlockVol := req.GetVolumeCapability().GetBlock() != nil
 	isFsVol := req.GetVolumeCapability().GetMount() != nil
 	if isFsVol {
-		return error, status.Error(codes.InvalidArgument, "FUSE not supported yet")
+		return nil, status.Error(codes.InvalidArgument, "FUSE not supported yet")
 	}
 	// Create target directory
-	err = os.MkdirAll(req.GetTargetPath(), 0755)
+	err := os.MkdirAll(req.GetTargetPath(), 0755)
 	if err != nil {
-		return status.Errorf(codes.Internal, "mkdir failed: target=%s, error=%v", req.GetTargetPath(), err)
+		return nil, status.Errorf(codes.Internal, "mkdir failed: target=%s, error=%v", req.GetTargetPath(), err)
 	}
 	// Mount vhost-user socket dir into the target directory
+	socketDir := fmt.Sprintf("%s/%s", SocketDir, volumeID)
+	socket := fmt.Sprintf("%s/%s/%s", socketDir, vhostSock)
+	if _, err := os.Stat(socket); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed in stating the socket for volume %s: %v", volumeID, err)
+	}
+
+	if err := syscall.Mount(socketDir, req.GetTargetPath(), "none", syscall.MS_BIND, ""); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed in mounting the socket dir for volume %s: %v", volumeID, err)
+	}
+
+	nodeLogger.Info("node publish volume called")
 
 	return &csi.NodePublishVolumeResponse{}, nil
 
 }
 
-func (s *nodeService) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
-	// Remove the directory
+func (s *Driver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublishVolumeRequest) (*csi.NodeUnpublishVolumeResponse, error) {
+	volumeID := req.GetVolumeId()
+	// Unmount and remove the socket directory
+	socketDir := fmt.Sprintf("%s/%s", SocketDir, volumeID)
+	if err := syscall.Unmount(socketDir, 0); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed in unmounting the socket dir for volume %s: %v", volumeID, err)
+	}
+	if err := os.RemoveAll(socketDir); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed in removing the socket dir for volume %s: %v", volumeID, err)
+	}
+	if err := os.RemoveAll(req.GetTargetPath()); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed in removing the socket dir for volume %s: %v", volumeID, err)
+	}
+	return &csi.NodeUnpublishVolumeResponse{}, nil
 }
 
-func (s *nodeService) NodeGetCapabilities(context.Context, *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
+func (s *Driver) NodeGetCapabilities(context.Context, *csi.NodeGetCapabilitiesRequest) (*csi.NodeGetCapabilitiesResponse, error) {
 	capabilities := []csi.NodeServiceCapability_RPC_Type{}
 
 	csiCaps := make([]*csi.NodeServiceCapability, len(capabilities))
@@ -86,8 +93,8 @@ func (s *nodeService) NodeGetCapabilities(context.Context, *csi.NodeGetCapabilit
 	}, nil
 }
 
-func (s *nodeService) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
+func (s *Driver) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
 	return &csi.NodeGetInfoResponse{
-		NodeId: s.nodeName,
+		NodeId: s.nodeId,
 	}, nil
 }
