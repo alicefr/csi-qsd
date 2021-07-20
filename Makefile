@@ -7,6 +7,7 @@ TEST_DIR=$(DIR)test-qmp
 .PHONY: build
 build: clean-$(BIN_DIR)/$(BIN_CSI)
 	go build -o $(BIN_DIR)/qsd-server ./cmd/qsd
+	go build -o $(BIN_DIR)/driver ./cmd/driver
 
 .PHONY: build-$(BIN_QSD_CLI)
 build-$(BIN_QSD_CLI): 
