@@ -117,3 +117,25 @@ func (d *Driver) ControllerUnpublishVolume(ctx context.Context, req *csi.Control
 	// TODO delete exporter from the QSD and remove the qcow image
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
+
+func (d *Driver) ControllerGetCapabilities(context.Context, *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
+	capabilities := []csi.ControllerServiceCapability_RPC_Type{
+		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
+		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+	}
+
+	csiCaps := make([]*csi.ControllerServiceCapability, len(capabilities))
+	for i, capability := range capabilities {
+		csiCaps[i] = &csi.ControllerServiceCapability{
+			Type: &csi.ControllerServiceCapability_Rpc{
+				Rpc: &csi.ControllerServiceCapability_RPC{
+					Type: capability,
+				},
+			},
+		}
+	}
+
+	return &csi.ControllerGetCapabilitiesResponse{
+		Capabilities: csiCaps,
+	}, nil
+}

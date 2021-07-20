@@ -36,9 +36,8 @@ spec:
       priorityClassName: system-node-critical
       serviceAccount: csi-qsd-node-sa
       containers:
-        # Register the plugin
         - name: csi-node-driver-registrar
-          image: quay.io/k8scsi/csi-node-driver-registrar:v1.1.0
+          image: quay.io/k8scsi/csi-node-driver-registrar:v2.0.1
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
@@ -47,7 +46,7 @@ spec:
             - name: ADDRESS
               value: /csi/csi.sock
             - name: DRIVER_REG_SOCK_PATH
-              value: /csi/csi.sock
+              value: /var/lib/kubelet/plugins/qsd.csi.com/csi.sock
           volumeMounts:
           - name: plugin-dir
             mountPath: /csi/
@@ -66,7 +65,6 @@ spec:
           volumeMounts:
           - name: plugin-dir
             mountPath: /csi/
-        # CSI QSD driver
         - name: csi-qsd-plugin
           image: qsd/driver:latest
           imagePullPolicy: IfNotPresent
@@ -93,10 +91,9 @@ spec:
           volumeMounts:
            - name: plugin-dir
              mountPath: /csi
+             mountPropagation: "Bidirectional"
            - name: mountpoint-dir
              mountPath: /var/lib/kubelet/pods
-             # needed so that any mounts setup inside this container are
-             # propagated back to the host machine.
              mountPropagation: "Bidirectional"
            - name: sockets
              mountPath: /var/run/qsd/sockets
@@ -125,19 +122,12 @@ metadata:
   name: csi-qsd-node-sa
   namespace: csi-qsd
 ---
-
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-qsd-node
   namespace: csi-qsd
 rules:
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
-  - apiGroups: [""]
-    resources: ["services"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
   - apiGroups: [""]
     resources: ["persistentvolumes"]
     verbs: ["get", "list", "watch", "create", "delete"]
@@ -147,9 +137,25 @@ rules:
   - apiGroups: ["storage.k8s.io"]
     resources: ["storageclasses"]
     verbs: ["get", "list", "watch"]
-
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots"]
+    verbs: ["get", "list"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents"]
+    verbs: ["get", "list"]
+  - apiGroups: [ "storage.k8s.io" ]
+    resources: [ "csinodes" ]
+    verbs: [ "get", "list", "watch" ]
+  - apiGroups: [ "" ]
+    resources: [ "nodes" ]
+    verbs: [ "get", "list", "watch" ]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments"]
+    verbs: ["get", "list", "watch"]
 ---
-
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -160,5 +166,5 @@ subjects:
     namespace: csi-qsd
 roleRef:
   kind: ClusterRole
-  name: csi-qsd-node-driver-registrar-role
+  name: csi-qsd-node
   apiGroup: rbac.authorization.k8s.io
