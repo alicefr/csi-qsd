@@ -69,8 +69,7 @@ spec:
           args :
             - "-node-id=$(KUBE_NODE_NAME)"
             - "-endpoint=$(CSI_ENDPOINT)"
-            - "-dir=$(DIR_QSD)"
-            - "-qsd=$(QSD_SERVICE)"
+            - "-port=$(QSD_PORT)"
           env:
             - name: KUBE_NODE_NAME
               valueFrom:
@@ -78,8 +77,8 @@ spec:
                   fieldPath: spec.nodeName
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
-            - name: DIR_QSD
-              value: /csi/qsd-volumes
+            - name: QSD_PORT
+              value: 4444
             - name: QSD_SERVICE
               value: /var/qsd/qmp/qmp.sock
           securityContext:
