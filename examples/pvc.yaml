@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc
+spec:
+  volumeMode: Block
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: csi-qsd
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  containers:
+    - name: my-container
+      image: busybox
+      command:
+        - sleep
+        - "3600"
+      volumeDevices:
+        - devicePath: /dev/block
+          name: my-volume
+      imagePullPolicy: IfNotPresent
+  volumes:
+    - name: my-volume
+      persistentVolumeClaim:
+        claimName: pvc
