@@ -34,10 +34,11 @@ type Driver struct {
 	readyMu  sync.Mutex
 	ready    bool
 	port     string
-	storage  map[string]string
+	storage  map[string]int64
 
-	srv    *grpc.Server
-	log    *logrus.Entry
+	srv *grpc.Server
+	log *logrus.Entry
+
 	nodeId string
 }
 
@@ -49,7 +50,7 @@ func NewDriver(endpoint, driverName, nodeId, port string) (*Driver, error) {
 	return &Driver{
 		version:  version,
 		endpoint: endpoint,
-		storage:  make(map[string]string),
+		storage:  make(map[string]int64),
 		name:     driverName,
 		log:      log,
 		ready:    true,

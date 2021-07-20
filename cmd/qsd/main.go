@@ -95,7 +95,7 @@ func (c *server) CreateVolume(ctx context.Context, image *qsd.Image) (*qsd.Respo
 		return &qsd.Response{
 			Success: false,
 			Message: fmt.Sprintf("Failed creating the qsd monitor fol vol %s:%v", image.ID, err),
-		}, nil
+		}, err
 	}
 	dir := fmt.Sprintf("%s/%s", imagesDir, image.ID)
 	i := fmt.Sprintf("%s/%s", imagesDir, diskImg)
@@ -104,15 +104,15 @@ func (c *server) CreateVolume(ctx context.Context, image *qsd.Image) (*qsd.Respo
 		return &qsd.Response{
 			Success: false,
 			Message: fmt.Sprintf("Cannot create directory for the volume:%s", image.ID),
-		}, nil
+		}, err
 	}
 	_, err = os.Stat(i)
 	if os.IsNotExist(err) {
-		if err := volManager.CreateVolume(i, image.ID, *image.Size); err != nil {
+		if err := volManager.CreateVolume(i, image.ID, string(image.Size)); err != nil {
 			return &qsd.Response{
 				Success: false,
 				Message: fmt.Sprintf("Failed creating the disk image %s:%v", image.ID, err),
-			}, nil
+			}, err
 		}
 
 	}
@@ -122,7 +122,7 @@ func (c *server) CreateVolume(ctx context.Context, image *qsd.Image) (*qsd.Respo
 		return &qsd.Response{
 			Success: false,
 			Message: fmt.Sprintf("Failed stating the image %s:%v", image.ID, err),
-		}, nil
+		}, err
 
 	}
 
@@ -138,7 +138,7 @@ func (c *server) ExposeVhostUser(ctx context.Context, image *qsd.Image) (*qsd.Re
 		return &qsd.Response{
 			Success: false,
 			Message: fmt.Sprintf("Failed creating the qsd monitor fol vol %s:%v", image.ID, err),
-		}, nil
+		}, err
 	}
 	dir := fmt.Sprintf("%s/%s", socketDir, image.ID)
 	// Create directory for the socket if it doesn't exists
@@ -146,7 +146,7 @@ func (c *server) ExposeVhostUser(ctx context.Context, image *qsd.Image) (*qsd.Re
 		return &qsd.Response{
 			Success: false,
 			Message: fmt.Sprintf("Cannot create socket directory for the volume %s: %v", image.ID, err),
-		}, nil
+		}, err
 	}
 	socket := fmt.Sprintf("%s/%s", dir, vhostSock)
 	// Expose and create vhost-user socket
@@ -155,7 +155,7 @@ func (c *server) ExposeVhostUser(ctx context.Context, image *qsd.Image) (*qsd.Re
 			return &qsd.Response{
 				Success: false,
 				Message: fmt.Sprintf("Cannot create socket directory for the volume %s: %v", image.ID, err),
-			}, nil
+			}, err
 		}
 	}
 
@@ -163,7 +163,7 @@ func (c *server) ExposeVhostUser(ctx context.Context, image *qsd.Image) (*qsd.Re
 		return &qsd.Response{
 			Success: false,
 			Message: fmt.Sprintf("Cannot create socket for the volume %s: %v", image.ID, err),
-		}, nil
+		}, err
 	}
 	return &qsd.Response{
 		Success: true,

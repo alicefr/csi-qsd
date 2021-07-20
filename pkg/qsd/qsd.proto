@@ -10,7 +10,7 @@ service QsdService {
 
 message Image {
 	string ID = 1 ;
-	optional string size = 2;
+	int64 size = 2;
 }
 
 message Response {
