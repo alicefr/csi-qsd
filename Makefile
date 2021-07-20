@@ -18,11 +18,7 @@ test:
 	@GO111MODULE=on go test -mod=vendor -v ./...
 
 .PHONY: images
-images: image-qsd-client image-qsd  image-driver
-
-.PHONY: image-qsd-client
-image-qsd-client: build-qsd-client
-	docker build -t qsd/qsd-client -f dockerfiles/qsd-client/Dockerfile .
+images: image-qsd  image-driver
 
 .PHONY: image-qsd
 image-qsd: build
@@ -31,10 +27,6 @@ image-qsd: build
 .PHONY: image-driver
 image-driver: build
 	docker build -t qsd/driver -f	dockerfiles/driver/Dockerfile .
-
-.PHONY: image-qemu-utils
-image-utils:
-	docker build -t qsd/qemu-utils -f dockerfiles/utils/Dockerfile  .
 
 .PHONY: generate
 generate:
