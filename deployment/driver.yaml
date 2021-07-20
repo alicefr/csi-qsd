@@ -14,22 +14,15 @@ kind: StorageClass
 metadata:
   name: csi-qsd
 provisioner: qsd.csi.com
-parameters:
-  sc: standard # Define the backend Storage Class to use to request the PV for the image
 reclaimPolicy: Delete # The PV is automatically deleted when the PVC is deleted
-allowVolumeExpansion: false # Right now not supported, this will depend on the backing sc
+allowVolumeExpansion: false # Right now not supported
 volumeBindingMode: WaitForFirstConsumer
 ---
-########################################
-###########                 ############
-###########   Node plugin   ############
-###########                 ############
-########################################
 kind: DaemonSet
 apiVersion: apps/v1
 metadata:
   name: csi-qsd-node
-  namespace: kube-system
+  namespace: csi-qsd
 spec:
   selector:
     matchLabels:
@@ -54,18 +47,31 @@ spec:
             - name: ADDRESS
               value: /csi/csi.sock
             - name: DRIVER_REG_SOCK_PATH
-              value: /var/lib/kubelet/plugins/qsd.csi.com/csi.sock
+              value: /csi/csi.sock
           volumeMounts:
           - name: plugin-dir
             mountPath: /csi/
           - name: registration-dir
             mountPath: /registration/
+        - name: csi-provisioner
+          image: quay.io/k8scsi/csi-provisioner:v2.0.4
+          args:
+          - "--csi-address=$(ADDRESS)"
+          - "--default-fstype=ext4"
+          - "--v=5"
+          env:
+          - name: ADDRESS
+            value: /csi/csi.sock
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+          - name: plugin-dir
+            mountPath: /csi/
         # CSI QSD driver
         - name: csi-qsd-plugin
           image: qsd/driver:latest
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           command:
-            - /usr/bin/csi-qsd
+            - "/usr/bin/driver"
           args :
             - "-node-id=$(KUBE_NODE_NAME)"
             - "-endpoint=$(CSI_ENDPOINT)"
@@ -78,9 +84,7 @@ spec:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
             - name: QSD_PORT
-              value: 4444
-            - name: QSD_SERVICE
-              value: /var/qsd/qmp/qmp.sock
+              value: "4444"
           securityContext:
             privileged: true
             capabilities:
@@ -97,10 +101,6 @@ spec:
            - name: sockets
              mountPath: /var/run/qsd/sockets
       volumes:
-        ##########################################################
-        #       Directories shared for CSI plugin                #
-        ##########################################################
-        # Directory where the driver mounts volumes for the CSI PV
         - name: mountpoint-dir
           hostPath:
             path: /var/lib/kubelet/pods
@@ -119,19 +119,18 @@ spec:
             path: /var/run/qsd/sockets
             type: DirectoryOrCreate
 ---
-
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: csi-qsd-node-sa
-  namespace: kube-system
+  namespace: csi-qsd
 ---
 
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: csi-qsd-node-driver-registrar-role
-  namespace: kube-system
+  name: csi-qsd-node
+  namespace: csi-qsd
 rules:
   - apiGroups: [""]
     resources: ["events"]
@@ -139,16 +138,26 @@ rules:
   - apiGroups: [""]
     resources: ["services"]
     verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+
 ---
 
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: csi-qsd-node-driver-registrar-binding
+  name: csi-qsd-node
 subjects:
   - kind: ServiceAccount
     name: csi-qsd-node-sa
-    namespace: kube-system
+    namespace: csi-qsd
 roleRef:
   kind: ClusterRole
   name: csi-qsd-node-driver-registrar-role

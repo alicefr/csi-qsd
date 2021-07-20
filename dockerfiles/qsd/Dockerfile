@@ -43,4 +43,4 @@ VOLUME /share
 COPY --from=build /qemu/build/storage-daemon/qemu-storage-daemon /usr/local/bin
 COPY bin/qsd-server /usr/bin/qsd-server
 ENTRYPOINT ["/usr/bin/qsd-server"]
-CMD ["-p", "4444"]
+CMD ["-port", "4444"]

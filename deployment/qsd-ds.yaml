@@ -16,6 +16,13 @@ spec:
       - name: qsd
         image: docker.io/qsd/qsd:latest
         imagePullPolicy: IfNotPresent
+        command: ["/usr/bin/qsd-server"]
+        args:
+        - "-port"
+        - "$(QSD_PORT)"
+        env:
+          - name: QSD_PORT
+            value: "4444"
         securityContext:
           privileged: true
         ports:
