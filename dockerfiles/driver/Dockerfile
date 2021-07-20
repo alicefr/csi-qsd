@@ -1,3 +1,3 @@
 FROM fedora:34
 
-COPY ./bin/csi-qsd /usr/bin/csi-qsd
+COPY ./bin/driver /usr/bin/driver
