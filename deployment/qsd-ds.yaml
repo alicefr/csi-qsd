@@ -16,15 +16,25 @@ spec:
       - name: qsd
         image: docker.io/qsd/qsd:latest
         imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
         ports:
         - protocol: TCP
           containerPort: 4444
           hostPort: 4444
         volumeMounts:
         - name: images
-          mountPath: /var/lib/images
+          mountPath: /var/lib/qsd/images
+          mountPropagation: Bidirectional
+        - name: sockets
+          mountPath: /var/lib/qsd/sockets
+          mountPropagation: Bidirectional
       volumes:
       - name: images
         hostPath:
-          path: /var/run/qsd
+          path: /var/run/qsd/images
+          type: DirectoryOrCreate
+      - name: sockets
+        hostPath:
+          path: /var/run/qsd/sockets
           type: DirectoryOrCreate
