@@ -3,7 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: pvc
 spec:
-  volumeMode: Block
+  volumeMode: Filesystem
   accessModes:
     - ReadWriteOnce
   resources:
@@ -22,8 +22,8 @@ spec:
       command:
         - sleep
         - "3600"
-      volumeDevices:
-        - devicePath: /dev/block
+      volumeMounts:
+        - mountPath: /pvc
           name: my-volume
       imagePullPolicy: IfNotPresent
   volumes:

@@ -125,8 +125,8 @@ func (v *VolumeManager) CreateNbdServer(exporter, path string) error {
 func (v *VolumeManager) CreateVolume(image, id, size string) error {
 	cmdBlockCreateFile := fmt.Sprintf(`{"execute": "blockdev-create", "arguments": {"job-id": "job0", "options": {"driver": "file", "filename": "%s", "size": 0}}}`, image)
 	cmdJobDismiss := `{"execute": "job-dismiss", "arguments": {"id": "job0"}}`
-	cmdBlockAddFile := fmt.Sprintf(`{"execute": "blockdev-add", "arguments": {"driver": "file", "filename": "%s", "node-name": "%s"}}`, image, id)
-	cmdBlockCreateQCOW := fmt.Sprintf(`{"execute": "blockdev-create", "arguments": {"job-id": "job0", "options": {"driver": "qcow2", "file": "%s", "size": %s}}}`, size, id)
+	cmdBlockAddFile := fmt.Sprintf(`{"execute": "blockdev-add", "arguments": {"driver": "file", "filename": "%s", "node-name": "node-%s"}}`, image, id)
+	cmdBlockCreateQCOW := fmt.Sprintf(`{"execute": "blockdev-create", "arguments": {"job-id": "job0", "options": {"driver": "qcow2", "file": "node-%s", "size": %s}}}`, id, size)
 	cmds := []string{
 		cmdBlockCreateFile,
 		cmdJobDismiss,
@@ -135,13 +135,13 @@ func (v *VolumeManager) CreateVolume(image, id, size string) error {
 		cmdJobDismiss,
 	}
 	for _, c := range cmds {
-		if strings.Contains(c, "job-dismiss") {
-			// HACK: implement loop to wait until job is completed and then dismiss it
-			time.Sleep(2 * time.Second)
-
-		}
 		if err := v.Monitor.ExecuteCommand(c); err != nil {
 			return err
+		}
+		if strings.Contains(c, "blockdev-create") {
+			// HACK: implement loop to wait until job is completed and then dismiss it
+			time.Sleep(3 * time.Second)
+
 		}
 	}
 
@@ -149,7 +149,7 @@ func (v *VolumeManager) CreateVolume(image, id, size string) error {
 }
 
 func (v *VolumeManager) ExposeVhostUser(id, vhostSock string) error {
-	cmdExport := fmt.Sprintf(`{"block-export-add": "addr": "%s", "id": "%s", "node-name": "%s", "type": "vhost-user-blk"}`, vhostSock, id, id)
+	cmdExport := fmt.Sprintf(`{"execute": "block-export-add", "arguments": {"id": "vhost-%s", "node-name": "node-%s", "type": "vhost-user-blk", "writable": true, "addr": { "path": "%s", "type": "unix"}}}`, id, id, vhostSock)
 	cmds := []string{
 		cmdExport,
 	}

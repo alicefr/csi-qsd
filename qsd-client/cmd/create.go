@@ -1,81 +1,74 @@
 package cmd
 
 import (
+	"context"
+	"fmt"
+	"time"
+
 	"github.com/alicefr/csi-qsd/pkg/qsd"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"strconv"
+	"google.golang.org/grpc"
 )
 
-func createVolumeUnixSocket(socket, image string, size int) {
-	m, err := qsd.CreateNewUnixMonitor(socket)
-	if err != nil {
-		log.Fatalf("Error creating monitor: %v", err)
-	}
-	v := &qsd.Volume{Monitor: m}
-	defer v.Monitor.Disconnect()
-	log.Infof("Create Volume")
-	err = v.CreateVolume(image)
-	if err != nil {
-		log.Fatalf("Error creating volume: %v", err)
-	}
-
-}
-
-func createVolumeTCPSocket(host, port, image string, size int) {
-	m, err := qsd.CreateNewTCPMonitor(host, port)
-	if err != nil {
-		log.Fatalf("Error creating monitor: %v", err)
-	}
-	v := &qsd.Volume{Monitor: m, Size: strconv.Itoa(size)}
-	defer v.Monitor.Disconnect()
-	log.Infof("Create Volume")
-	err = v.CreateVolume(image)
-	if err != nil {
-		log.Fatalf("Error creating volume: %v", err)
-	}
-
-}
+const (
+	port = "4444"
+	host = "localhost"
+)
 
 // createCmd represents the create command
 var createCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a image",
 	Long:  `Create a image`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		image, err := cmd.Flags().GetString("image")
 		if err != nil {
 			log.Fatalf("Error getting image exporter: %v", err)
 		}
-		var size int
-		size, err = cmd.Flags().GetInt("size")
+		var size int64
+		size, err = cmd.Flags().GetInt64("size")
 		if err != nil {
 			log.Fatalf("Error getting size exporter: %v", err)
 		}
-		switch {
-		case Socket != "":
-			createVolumeUnixSocket(Socket, image, size)
-		case Host != "" && Port != "":
-			createVolumeTCPSocket(Host, Port, image, size)
-		default:
-			log.Fatalf("You need to specify either unix or tcp socket")
+		i := &qsd.Image{
+			ID:   image,
+			Size: size,
 		}
+		// Create client to the QSD grpc server on the node where the volume has to be created
+		var opts []grpc.DialOption
+		opts = append(opts, grpc.WithInsecure())
+		conn, err := grpc.Dial(fmt.Sprintf("%s:%s", host, port), opts...)
+		if err != nil {
+			return fmt.Errorf("Failed to connect to the QSD server:%v", err)
+		}
+		client := qsd.NewQsdServiceClient(conn)
+		defer conn.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		// Create Volume
+		log.Info("create backend image with the QSD")
+		_, err = client.CreateVolume(ctx, i)
+		if err != nil {
+			return fmt.Errorf("Error for creating the volume %v", err)
+		}
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		log.Info("create exporter with the QSD")
+		_, err = client.ExposeVhostUser(ctx, i)
+		if err != nil {
+			return fmt.Errorf("Error for creating the exporter %v", err)
+		}
+
+		return nil
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(createCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// createCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
 	createCmd.Flags().String("image", "image", "Name of the image")
-	createCmd.Flags().Int("size", 0, "Size of the image")
+	createCmd.Flags().Int64("size", 0, "Size of the image")
 	createCmd.MarkFlagRequired("image")
 	createCmd.MarkFlagRequired("size")
 }

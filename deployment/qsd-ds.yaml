@@ -31,10 +31,10 @@ spec:
           hostPort: 4444
         volumeMounts:
         - name: images
-          mountPath: /var/lib/qsd/images
+          mountPath: /var/run/qsd/images
           mountPropagation: Bidirectional
         - name: sockets
-          mountPath: /var/lib/qsd/sockets
+          mountPath: /var/run/qsd/sockets
           mountPropagation: Bidirectional
       volumes:
       - name: images

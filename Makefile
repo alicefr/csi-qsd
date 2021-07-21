@@ -10,7 +10,7 @@ build: clean-$(BIN_DIR)/$(BIN_CSI)
 	go build -o $(BIN_DIR)/driver ./cmd/driver
 
 .PHONY: build-$(BIN_QSD_CLI)
-build-$(BIN_QSD_CLI): 
+build-client: 
 	go build -o $(BIN_DIR)/$(BIN_QMP_CLI) ./qsd-client
 
 .PHONY: test

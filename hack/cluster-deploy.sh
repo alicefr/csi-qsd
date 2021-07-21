@@ -11,4 +11,7 @@ docker exec -ti k8s-qsd-control-plane crictl rmi ${IMAGE_QSD}
 set -ex
 kind load docker-image --name ${CLUSTER}  ${IMAGE_DRIVER}
 kind load docker-image --name ${CLUSTER} ${IMAGE_QSD}
-#kubectl apply -f deployment
+kubectl apply -f deployment/namespace.yaml
+kubectl apply -f deployment/qsd-ds.yaml
+kubectl apply -f deployment/driver.yaml
+

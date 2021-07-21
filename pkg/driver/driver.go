@@ -21,9 +21,15 @@ const (
 )
 
 const (
-	SocketDir = "/var/lib/qsd/sockets"
+	SocketDir = "/var/run/qsd/sockets"
 	vhostSock = "vhost.sock"
 )
+
+type Volume struct {
+	id   string
+	size int64
+	node string
+}
 
 type Driver struct {
 	csi.UnimplementedControllerServer
@@ -34,7 +40,7 @@ type Driver struct {
 	readyMu  sync.Mutex
 	ready    bool
 	port     string
-	storage  map[string]int64
+	storage  map[string]Volume
 
 	srv *grpc.Server
 	log *logrus.Entry
@@ -50,11 +56,12 @@ func NewDriver(endpoint, driverName, nodeId, port string) (*Driver, error) {
 	return &Driver{
 		version:  version,
 		endpoint: endpoint,
-		storage:  make(map[string]int64),
+		storage:  make(map[string]Volume),
 		name:     driverName,
 		log:      log,
 		ready:    true,
 		nodeId:   nodeId,
+		port:     port,
 	}, nil
 }
 
@@ -73,6 +80,7 @@ func (d *Driver) Run(ctx context.Context) error {
 		addr = filepath.FromSlash(u.Path)
 	}
 	d.log.Infof("Socket %s schema %s", d.endpoint, u.Scheme)
+	d.log.Infof("QSD grpc server listens at port %s", d.port)
 	// CSI plugins talk only over UNIX sockets currently
 	if u.Scheme != "unix" {
 		return fmt.Errorf("currently only unix domain sockets are supported, have: %s", u.Scheme)
