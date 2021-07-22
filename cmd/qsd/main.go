@@ -179,3 +179,19 @@ func (c *server) ExposeVhostUser(ctx context.Context, image *qsd.Image) (*qsd.Re
 	}, nil
 
 }
+
+func (c *server) DeleteVolume(ctx context.Context, image *qsd.Image) (*qsd.Response, error) {
+	return &qsd.Response{}, nil
+}
+
+func (c *server) DeleteExporter(ctx context.Context, image *qsd.Image) (*qsd.Response, error) {
+	return &qsd.Response{}, nil
+}
+
+func (c *server) CreateSnapshot(ctx context.Context, image *qsd.Snapshot) (*qsd.Response, error) {
+	return &qsd.Response{}, nil
+}
+
+func (c *server) DeleteSnapshot(ctx context.Context, image *qsd.Snapshot) (*qsd.Response, error) {
+	return &qsd.Response{}, nil
+}

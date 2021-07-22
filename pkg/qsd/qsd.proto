@@ -6,11 +6,20 @@ option go_package = "github.com/alicefr/csi-qsd/pkg/qsd";
 service QsdService {
 	rpc CreateVolume(Image) returns (Response) {}
 	rpc ExposeVhostUser(Image) returns (Response) {}
+	rpc DeleteVolume(Image) returns (Response) {}
+	rpc DeleteExporter(Image) returns (Response) {}
+	rpc CreateSnapshot(Snapshot) returns (Response) {}
+	rpc DeleteSnapshot(Snapshot) returns (Response) {}
 }
 
 message Image {
 	string ID = 1 ;
 	int64 size = 2;
+}
+
+message Snapshot {
+	string ID = 1;
+	string SourceVolumeID = 2;
 }
 
 message Response {
