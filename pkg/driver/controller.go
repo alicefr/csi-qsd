@@ -105,7 +105,9 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 	})
 	v, ok := d.storage[req.VolumeId]
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "Failed to delete volume %s: because not found", req.VolumeId)
+		// do not return an error because the volume might be already deleted
+		log.Errorf("Failed to delete volume %s: because not found", req.VolumeId)
+		return &csi.DeleteVolumeResponse{}, nil
 	}
 	// Create client to the QSD grpc server on the node where the volume has to be created
 	var opts []grpc.DialOption
