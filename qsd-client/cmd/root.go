@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 var Port string
 var Host string
-var Socket string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -31,6 +31,5 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&Port, "port", "p", "", "Port for the QMP server")
 	rootCmd.PersistentFlags().StringVarP(&Host, "server", "q", "", "Host for the QMP server")
-	rootCmd.PersistentFlags().StringVarP(&Socket, "socket", "s", "", "Socket for the QMP server")
 
 }

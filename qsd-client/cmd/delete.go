@@ -11,24 +11,17 @@ import (
 	"google.golang.org/grpc"
 )
 
-// createCmd represents the create command
-var createCmd = &cobra.Command{
-	Use:   "create",
-	Short: "Create a image",
-	Long:  `Create a image`,
+// deleteCmd represents the create command
+var deleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete a image",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		image, err := cmd.Flags().GetString("image")
 		if err != nil {
 			log.Fatalf("Error getting image exporter: %v", err)
 		}
-		var size int64
-		size, err = cmd.Flags().GetInt64("size")
-		if err != nil {
-			log.Fatalf("Error getting size exporter: %v", err)
-		}
 		i := &qsd.Image{
-			ID:   image,
-			Size: size,
+			ID: image,
 		}
 		// Create client to the QSD grpc server on the node where the volume has to be created
 		var opts []grpc.DialOption
@@ -40,20 +33,21 @@ var createCmd = &cobra.Command{
 		client := qsd.NewQsdServiceClient(conn)
 		defer conn.Close()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		// Create Volume
-		log.Info("create backend image with the QSD")
-		_, err = client.CreateVolume(ctx, i)
-		if err != nil {
-			return fmt.Errorf("Error for creating the volume %v", err)
-		}
-		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		log.Info("create exporter with the QSD")
-		_, err = client.ExposeVhostUser(ctx, i)
+		// Remove exporter
+		log.Info("remove exporter with the QSD")
+		_, err = client.DeleteExporter(ctx, i)
 		if err != nil {
 			return fmt.Errorf("Error for creating the exporter %v", err)
+		}
+		// Remove Volume
+		log.Info("remove backend image with the QSD")
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err = client.DeleteVolume(ctx, i)
+		if err != nil {
+			return fmt.Errorf("Error for creating the volume %v", err)
 		}
 
 		return nil
@@ -61,9 +55,7 @@ var createCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(createCmd)
-	createCmd.Flags().String("image", "image", "Name of the image")
-	createCmd.Flags().Int64("size", 0, "Size of the image")
-	createCmd.MarkFlagRequired("image")
-	createCmd.MarkFlagRequired("size")
+	rootCmd.AddCommand(deleteCmd)
+	deleteCmd.Flags().String("image", "image", "Name of the image")
+	deleteCmd.MarkFlagRequired("image")
 }
