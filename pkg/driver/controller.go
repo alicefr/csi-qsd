@@ -121,19 +121,19 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	// Remove Volume
-	log.Info("remove backend image with the QSD")
-	_, err = client.CreateVolume(ctx, image)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Error for creating the volume %v", err)
-	}
 	// Remove exporter
 	log.Info("remove exporter with the QSD")
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	_, err = client.ExposeVhostUser(ctx, image)
+	_, err = client.DeleteExporter(ctx, image)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Error for creating the exporter %v", err)
+	}
+	// Remove Volume
+	log.Info("remove backend image with the QSD")
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err = client.DeleteVolume(ctx, image)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Error for creating the volume %v", err)
 	}
 
 	d.deleteVolume(req.VolumeId)
