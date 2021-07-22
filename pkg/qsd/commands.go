@@ -61,11 +61,12 @@ func (q *QMPMonitor) Disconnect() {
 
 func (q *QMPMonitor) ExecuteCommand(qmpCmd string) error {
 	cmd := []byte(qmpCmd)
+	fmt.Printf("Executed command %s\n", qmpCmd)
 	raw, err := q.monitor.Run(cmd)
 	if err != nil {
 		return fmt.Errorf("failed running qmp command %s: %v", qmpCmd, err)
 	}
-	fmt.Printf("Executed command %s result: %s \n", qmpCmd, string(raw))
+	fmt.Printf("result: %s\n", string(raw))
 	var result statusResult
 	err = json.Unmarshal(raw, &result)
 	if err != nil {
