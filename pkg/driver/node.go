@@ -64,7 +64,8 @@ func (s *Driver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublish
 	volumeID := req.GetVolumeId()
 	// Unmount and remove the socket directory
 	socketDir := fmt.Sprintf("%s/%s", SocketDir, volumeID)
-	if err := syscall.Unmount(socketDir, 0); err != nil {
+	err := syscall.Unmount(socketDir, 0)
+	if err != nil && !os.IsNotExist(err) {
 		return nil, status.Errorf(codes.Internal, "failed in unmounting the socket dir for volume %s: %v", volumeID, err)
 	}
 	if err := os.RemoveAll(socketDir); err != nil {
