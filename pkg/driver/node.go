@@ -71,8 +71,13 @@ func (s *Driver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublish
 	if err := os.RemoveAll(socketDir); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed in removing the socket dir for volume %s: %v", volumeID, err)
 	}
+
+	err = syscall.Unmount(req.GetTargetPath(), 0)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, status.Errorf(codes.Internal, "failed in unmounting the target dir for volume %s: %v", volumeID, err)
+	}
 	if err := os.RemoveAll(req.GetTargetPath()); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed in removing the socket dir for volume %s: %v", volumeID, err)
+		return nil, status.Errorf(codes.Internal, "failed in removing the target dir for volume %s: %v", volumeID, err)
 	}
 	log.Info("volume unpublished")
 	return &csi.NodeUnpublishVolumeResponse{}, nil
