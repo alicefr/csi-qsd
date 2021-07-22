@@ -150,7 +150,7 @@ func (v *VolumeManager) CreateVolume(image, id, size string) error {
 }
 
 func (v *VolumeManager) DeleteVolume(id string) error {
-	c := fmt.Sprintf(` { "execute": "blockdev-del", "arguments": { "node-name": "node-%s" }`, id)
+	c := fmt.Sprintf(` { "execute": "blockdev-del", "arguments": { "node-name": "node-%s" }}`, id)
 	if err := v.Monitor.ExecuteCommand(c); err != nil {
 		return err
 	}
