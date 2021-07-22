@@ -103,10 +103,40 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 		"volume_id": req.VolumeId,
 		"method":    "controller_delete_volume",
 	})
-	d.deleteVolume(req.VolumeId)
-	// TODO Remove exporter
+	v, ok := d.storage[req.VolumeId]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "Failed to delete volume %s: because not found", req.VolumeId)
+	}
+	// Create client to the QSD grpc server on the node where the volume has to be created
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithInsecure())
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%s", v.node, d.port), opts...)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to connect to the QSD server for node %s:%v", v.node, err)
+	}
+	client := qsd.NewQsdServiceClient(conn)
+	defer conn.Close()
+	image := &qsd.Image{
+		ID: v.id,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	// Remove Volume
+	log.Info("remove backend image with the QSD")
+	_, err = client.CreateVolume(ctx, image)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Error for creating the volume %v", err)
+	}
+	// Remove exporter
+	log.Info("remove exporter with the QSD")
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_, err = client.ExposeVhostUser(ctx, image)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Error for creating the exporter %v", err)
+	}
 
-	// TODO Remove image
+	d.deleteVolume(req.VolumeId)
 	log.Info("volume was deleted")
 	return &csi.DeleteVolumeResponse{}, nil
 }
