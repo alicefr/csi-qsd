@@ -148,15 +148,27 @@ func (v *VolumeManager) CreateVolume(image, id, size string) error {
 	return nil
 }
 
-func (v *VolumeManager) ExposeVhostUser(id, vhostSock string) error {
-	cmdExport := fmt.Sprintf(`{"execute": "block-export-add", "arguments": {"id": "vhost-%s", "node-name": "node-%s", "type": "vhost-user-blk", "writable": true, "addr": { "path": "%s", "type": "unix"}}}`, id, id, vhostSock)
-	cmds := []string{
-		cmdExport,
+func (v *VolumeManager) DeleteVolume(id string) error {
+	c := fmt.Sprintf(` { "execute": "blockdev-del", "arguments": { "node-name": "node-%s" }`, id)
+	if err := v.Monitor.ExecuteCommand(c); err != nil {
+		return err
 	}
-	for _, c := range cmds {
-		if err := v.Monitor.ExecuteCommand(c); err != nil {
-			return err
-		}
+	return nil
+}
+
+func (v *VolumeManager) ExposeVhostUser(id, vhostSock string) error {
+	c := fmt.Sprintf(`{"execute": "block-export-add", "arguments": {"id": "vhost-%s", "node-name": "node-%s", "type": "vhost-user-blk", "writable": true, "addr": { "path": "%s", "type": "unix"}}}`, id, id, vhostSock)
+	if err := v.Monitor.ExecuteCommand(c); err != nil {
+		return err
+	}
+	return nil
+
+}
+
+func (v *VolumeManager) DeleteExporter(id string) error {
+	c := fmt.Sprintf(`{"execute": "block-export-del", "arguments": {"id": "vhost-%s"}}`, id)
+	if err := v.Monitor.ExecuteCommand(c); err != nil {
+		return err
 	}
 	return nil
 
