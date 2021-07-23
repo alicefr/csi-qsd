@@ -41,6 +41,10 @@ cluster-up:
 cluster-deploy:	images
 	hack/cluster-deploy.sh
 
+.PHONY: cluster-down
+cluster-down:
+	hack/cluster-delete.sh
+
 .PHONY: vendor
 vendor:
 	@GO111MODULE=on go mod tidy
