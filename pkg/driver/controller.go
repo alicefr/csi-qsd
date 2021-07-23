@@ -146,7 +146,7 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 func (d *Driver) ControllerGetCapabilities(context.Context, *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
 	capabilities := []csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-		csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
 	}
 
 	csiCaps := make([]*csi.ControllerServiceCapability, len(capabilities))
@@ -163,4 +163,102 @@ func (d *Driver) ControllerGetCapabilities(context.Context, *csi.ControllerGetCa
 	return &csi.ControllerGetCapabilitiesResponse{
 		Capabilities: csiCaps,
 	}, nil
+}
+
+func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
+	id := req.GetName()
+	sourceID := req.GetSourceVolumeId()
+	if id == "" {
+		return nil, status.Error(codes.InvalidArgument, "CreateSnapshot Name must be provided")
+	}
+
+	if sourceID == "" {
+		return nil, status.Error(codes.InvalidArgument, "CreateSnapshot Source Volume ID must be provided")
+	}
+
+	log := d.log.WithFields(logrus.Fields{
+		"req_name":             id,
+		"req_source_volume_id": sourceID,
+		"req_parameters":       req.GetParameters(),
+		"method":               "controller_create_snapshot",
+	})
+	source, ok := d.storage[sourceID]
+	if !ok {
+		return nil, status.Error(codes.Internal, "Source volume not found in the storage")
+	}
+	var s Snapshot
+	s, ok = d.snapshots[id]
+	if !ok {
+		s = Snapshot{
+			id:       id,
+			sourceID: sourceID,
+			node:     source.node,
+		}
+		d.snapshots[id] = s
+	}
+
+	log.Info("create snapshot is called")
+	// Create client to the QSD grpc server on the node where the volume has to be created
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithInsecure())
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%s", s.node, d.port), opts...)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to connect to the QSD server for node %s:%v", s.node, err)
+	}
+	client := qsd.NewQsdServiceClient(conn)
+	defer conn.Close()
+	image := &qsd.Snapshot{
+		ID:               s.id,
+		SourceVolumeID:   s.sourceID,
+		VolumeToSnapshot: s.sourceID,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	// Create snapshot
+	log.Info("create snapshot with the QSD")
+	_, err = client.CreateSnapshot(ctx, image)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Error for creating the exporter %v", err)
+	}
+	return &csi.CreateSnapshotResponse{}, nil
+}
+
+// DeleteSnapshot will be called by the CO to delete a snapshot.
+func (d *Driver) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
+	id := req.SnapshotId
+	log := d.log.WithFields(logrus.Fields{
+		"req_snapshot_id": req.GetSnapshotId(),
+		"method":          "delete_snapshot",
+	})
+
+	s, ok := d.snapshots[id]
+	if !ok {
+		// do not return an error because the volume might be already deleted
+		log.Errorf("Failed to delete volume %s: because not found", id)
+		return &csi.DeleteSnapshotResponse{}, nil
+	}
+	log.Info("snapshot was deleted")
+	// Create client to the QSD grpc server on the node where the volume has to be created
+	var opts []grpc.DialOption
+	opts = append(opts, grpc.WithInsecure())
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%s", s.node, d.port), opts...)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to connect to the QSD server for node %s:%v", s.node, err)
+	}
+	client := qsd.NewQsdServiceClient(conn)
+	defer conn.Close()
+	image := &qsd.Snapshot{
+		ID:             s.id,
+		SourceVolumeID: s.sourceID,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	// delete snapshot
+	log.Info("delete snapshot with the QSD")
+	_, err = client.DeleteSnapshot(ctx, image)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Error for creating the exporter %v", err)
+	}
+	d.deleteSnapshot(s.id)
+	return &csi.DeleteSnapshotResponse{}, nil
 }

@@ -26,21 +26,29 @@ const (
 )
 
 type Volume struct {
-	id   string
-	size int64
-	node string
+	id        string
+	size      int64
+	node      string
+	snapshots []Snapshot
+}
+
+type Snapshot struct {
+	id       string
+	sourceID string
+	node     string
 }
 
 type Driver struct {
 	csi.UnimplementedControllerServer
 	csi.UnimplementedNodeServer
-	name     string
-	version  string
-	endpoint string
-	readyMu  sync.Mutex
-	ready    bool
-	port     string
-	storage  map[string]Volume
+	name      string
+	version   string
+	endpoint  string
+	readyMu   sync.Mutex
+	ready     bool
+	port      string
+	storage   map[string]Volume
+	snapshots map[string]Snapshot
 
 	srv *grpc.Server
 	log *logrus.Entry
@@ -67,6 +75,20 @@ func NewDriver(endpoint, driverName, nodeId, port string) (*Driver, error) {
 
 func (d *Driver) deleteVolume(id string) {
 	delete(d.storage, id)
+}
+
+func (d *Driver) isAVolume(id string) bool {
+	_, ok := d.storage[id]
+	return ok
+}
+
+func (d *Driver) isASnapshot(id string) bool {
+	_, ok := d.snapshots[id]
+	return ok
+}
+
+func (d *Driver) deleteSnapshot(id string) {
+	delete(d.snapshots, id)
 }
 
 func (d *Driver) Run(ctx context.Context) error {

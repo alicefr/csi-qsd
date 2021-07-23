@@ -1,0 +1,8 @@
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: csi-qsd-snapshot
+driver: qsd.csi.com
+deletionPolicy: Delete
+parameters:

@@ -14,8 +14,8 @@ kind: StorageClass
 metadata:
   name: csi-qsd
 provisioner: qsd.csi.com
-reclaimPolicy: Delete # The PV is automatically deleted when the PVC is deleted
-allowVolumeExpansion: false # Right now not supported
+reclaimPolicy: Delete
+allowVolumeExpansion: false
 volumeBindingMode: Immediate
 ---
 kind: DaemonSet
@@ -65,6 +65,18 @@ spec:
           volumeMounts:
           - name: plugin-dir
             mountPath: /csi/
+        - name: csi-snapshotter
+          image: quay.io/k8scsi/csi-snapshotter:v3.0.2
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+          env:
+            - name: ADDRESS
+              value: /var/lib/csi/sockets/pluginproxy/csi.sock
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
         - name: driver
           image: qsd/driver:latest
           imagePullPolicy: IfNotPresent

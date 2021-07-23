@@ -8,3 +8,5 @@ nodes:
     containerPath: /dev/kvm
   - hostPath: /usr/lib/modules
     containerPath: /usr/lib/modules
+featureGates:
+  VolumeSnapshotDataSource: true
