@@ -20,6 +20,7 @@ message Image {
 message Snapshot {
 	string ID = 1;
 	string SourceVolumeID = 2;
+	string VolumeToSnapshot = 3;
 }
 
 message Response {

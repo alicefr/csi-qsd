@@ -18,13 +18,14 @@ import (
 )
 
 const (
-	qsdSock    = "/var/run/qsd-qmp.sock"
-	qsdPidfile = "/var/run/qsd.pid"
-	imagesDir  = "/var/run/qsd/images"
-	socketDir  = "/var/run/qsd/sockets"
-	timeout    = 30
-	diskImg    = "disk.img"
-	vhostSock  = "vhost.sock"
+	qsdSock        = "/var/run/qsd-qmp.sock"
+	qsdPidfile     = "/var/run/qsd.pid"
+	imagesDir      = "/var/run/qsd/images"
+	socketDir      = "/var/run/qsd/sockets"
+	timeout        = 30
+	diskImg        = "disk.img"
+	vhostSock      = "vhost.sock"
+	snapshotPrefix = "snap"
 )
 
 var (
@@ -217,12 +218,53 @@ func (c *server) DeleteExporter(ctx context.Context, image *qsd.Image) (*qsd.Res
 	return &qsd.Response{}, nil
 }
 
-func (c *server) CreateSnapshot(ctx context.Context, image *qsd.Snapshot) (*qsd.Response, error) {
-	// TODO
+func (c *server) CreateSnapshot(ctx context.Context, snapshot *qsd.Snapshot) (*qsd.Response, error) {
+	log.Infof("Create new monitor to snapshot")
+	volManager, err := qsd.NewVolumeManager(qsdSock)
+	defer volManager.Disconnect()
+	if err != nil {
+		errMessage := fmt.Sprintf("Failed creating the qsd monitor for snapshot %s:%v", snapshot.ID, err)
+		return failed(errMessage, err)
+	}
+	dir := fmt.Sprintf("%s/%s", imagesDir, snapshot.SourceVolumeID)
+	s := fmt.Sprintf("%s/%s-%s", dir, snapshotPrefix, snapshot.ID)
+	if _, err := os.Stat(dir); err != nil {
+		errMessage := fmt.Sprintf("Failed checking the directory for snapshot %s:%v", snapshot.ID, err)
+		return failed(errMessage, err)
+	}
+
+	if err := volManager.CreateSnapshot(snapshot.VolumeToSnapshot, snapshot.ID, s); err != nil {
+		errMessage := fmt.Sprintf("Cannot snapshot %s: %v", snapshot.ID, err)
+		return failed(errMessage, err)
+	}
+
 	return &qsd.Response{}, nil
+
 }
 
-func (c *server) DeleteSnapshot(ctx context.Context, image *qsd.Snapshot) (*qsd.Response, error) {
-	// TODO
+func (c *server) DeleteSnapshot(ctx context.Context, snapshot *qsd.Snapshot) (*qsd.Response, error) {
+	log.Infof("Create new monitor to snapshot")
+	volManager, err := qsd.NewVolumeManager(qsdSock)
+	defer volManager.Disconnect()
+	if err != nil {
+		errMessage := fmt.Sprintf("Failed creating the qsd monitor for snapshot %s:%v", snapshot.ID, err)
+		return failed(errMessage, err)
+	}
+	dir := fmt.Sprintf("%s/%s", imagesDir, snapshot.SourceVolumeID)
+	s := fmt.Sprintf("%s/%s-%s", dir, snapshotPrefix, snapshot.ID)
+	if _, err := os.Stat(dir); err != nil {
+		errMessage := fmt.Sprintf("Failed checking the directory for snapshot %s:%v", snapshot.ID, err)
+		return failed(errMessage, err)
+	}
+	// TODO find right way how to remove a snapshot
+	//	if err := volManager.DeleteVolume(snapshot.ID); err != nil {
+	//		errMessage := fmt.Sprintf("Cannot delete volume %s: %v", snapshot.ID, err)
+	//		return failed(errMessage, err)
+	//	}
+
+	if err := os.Remove(s); err != nil {
+		errMessage := fmt.Sprintf("Cannot delete snapshot %s: %v", snapshot.ID, err)
+		return failed(errMessage, err)
+	}
 	return &qsd.Response{}, nil
 }

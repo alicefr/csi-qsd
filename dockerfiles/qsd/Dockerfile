@@ -36,6 +36,7 @@ FROM fedora:34
 RUN dnf update -y && dnf install -y \
   libaio \
   liburing \
+  qemu-img \
   && dnf clean all
 
 VOLUME /share
