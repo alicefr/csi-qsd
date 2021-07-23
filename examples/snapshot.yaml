@@ -3,6 +3,6 @@ kind: VolumeSnapshot
 metadata:
   name: pvc-snapshot
 spec:
-  volumeSnapshotClassName: csi-hostpath-snapclass
+  volumeSnapshotClassName: csi-qsd-snapshot
   source:
-    persistentVolumeClaimName: pvc-test
+    persistentVolumeClaimName: pvc

@@ -14,4 +14,8 @@ kind load docker-image --name ${CLUSTER} ${IMAGE_QSD}
 kubectl apply -f deployment/namespace.yaml
 kubectl apply -f deployment/qsd-ds.yaml
 kubectl apply -f deployment/driver.yaml
+kubectl apply -f deployment/snapshotclass.yaml
 
+# Set context
+kubectl config set-context csi --namespace csi-qsd --user kind-k8s-qsd --cluster kind-k8s-qsd
+kubectl config use-context csi
