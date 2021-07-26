@@ -62,14 +62,15 @@ func NewDriver(endpoint, driverName, nodeId, port string) (*Driver, error) {
 		"node-id":  nodeId,
 	})
 	return &Driver{
-		version:  version,
-		endpoint: endpoint,
-		storage:  make(map[string]Volume),
-		name:     driverName,
-		log:      log,
-		ready:    true,
-		nodeId:   nodeId,
-		port:     port,
+		version:   version,
+		endpoint:  endpoint,
+		storage:   make(map[string]Volume),
+		snapshots: make(map[string]Snapshot),
+		name:      driverName,
+		log:       log,
+		ready:     true,
+		nodeId:    nodeId,
+		port:      port,
 	}, nil
 }
 
