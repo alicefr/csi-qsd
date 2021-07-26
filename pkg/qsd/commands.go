@@ -3,6 +3,7 @@ package qsd
 import (
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -124,7 +125,12 @@ func (v *VolumeManager) CreateNbdServer(exporter, path string) error {
 }
 
 func (v *VolumeManager) dismissJob(id string) error {
-	cmdJobDismiss := fmt.Sprintf(`{"execute": "job-dismiss", "arguments": {"id": "%s"}}`, id)
+	cmdJobDismiss := fmt.Sprintf(`{
+  "execute": "job-dismiss",
+  "arguments": {
+    "id": "%s"
+  }
+}`, id)
 	if err := v.Monitor.ExecuteCommand(cmdJobDismiss); err != nil {
 		return err
 	}
@@ -132,18 +138,12 @@ func (v *VolumeManager) dismissJob(id string) error {
 }
 
 func (v *VolumeManager) createImage(image, id, size, format string) error {
-	cmdBlockCreateFile := fmt.Sprintf(`{
-  "execute": "blockdev-create",
-  "arguments": {
-    "job-id": "job0",
-    "options": {
-      "driver": "file",
-      "filename": "%s",
-      "size": 0
-    }
-  }
-}`, image)
-
+	cmd := exec.Command("qemu-img", "create", "-f", format, image, size)
+	stdoutStderr, err := cmd.CombinedOutput()
+	fmt.Printf("execute: qemu-img output: %s \n", stdoutStderr)
+	if err != nil {
+		return fmt.Errorf("qemu-img failed err:%v", stdoutStderr, err)
+	}
 	cmdBlockAddFile := fmt.Sprintf(`{
   "execute": "blockdev-add",
   "arguments": {
@@ -153,69 +153,23 @@ func (v *VolumeManager) createImage(image, id, size, format string) error {
   }
 }`, image, id)
 
-	cmdBlockAddQCOW2 := fmt.Sprintf(`{
-  "execute": "blockdev-add",
-  "arguments": {
-    "driver": "qcow2",
-    "node-name": "node-%s",
-    "file": {
-      "driver": "file",
-      "filename": "%s"
-    },
-    "backing": null
-  }
-}`, id, image)
-
-	cmdBlockCreateQCOW := fmt.Sprintf(`
-{
-  "execute": "blockdev-create",
-  "arguments": {
-    "job-id": "job1",
-    "options": {
-      "driver": "qcow2",
-      "file": "node-%s",
-      "size": %s
-    }
-  }
-}`, id, size)
-	var cmdBlockAdd string
-	switch format {
-	case "file":
-		cmdBlockAdd = cmdBlockAddFile
-	case "qcow2":
-		cmdBlockAdd = cmdBlockAddQCOW2
-	default:
-		return fmt.Errorf("Image format not recognized support (file, qcow2) got %s", format)
-	}
-
-	cmds := []string{
-		cmdBlockCreateFile,
-		cmdBlockAdd,
-		cmdBlockCreateQCOW,
-	}
-	for _, c := range cmds {
-		if err := v.Monitor.ExecuteCommand(c); err != nil {
-			return err
-		}
-	}
-
-	// Hack find a better way to dismiss jobs. Right now sleep to let them finish
-	time.Sleep(2 * time.Second)
-	for _, job := range []string{"job0", "job1"} {
-		err := v.dismissJob(job)
-		if err != nil {
-			return err
-		}
+	if err := v.Monitor.ExecuteCommand(cmdBlockAddFile); err != nil {
+		return err
 	}
 	return nil
 }
 
 func (v *VolumeManager) CreateVolume(image, id, size string) error {
-	return v.createImage(image, id, size, "file")
+	return v.createImage(image, id, size, "qcow2")
 }
 
 func (v *VolumeManager) DeleteVolume(id string) error {
-	c := fmt.Sprintf(` { "execute": "blockdev-del", "arguments": { "node-name": "node-%s" }}`, id)
+	c := fmt.Sprintf(`{
+  "execute": "blockdev-del",
+  "arguments": {
+    "node-name": "node-%s"
+  }
+}`, id)
 	if err := v.Monitor.ExecuteCommand(c); err != nil {
 		return err
 	}
@@ -223,7 +177,19 @@ func (v *VolumeManager) DeleteVolume(id string) error {
 }
 
 func (v *VolumeManager) ExposeVhostUser(id, vhostSock string) error {
-	c := fmt.Sprintf(`{"execute": "block-export-add", "arguments": {"id": "vhost-%s", "node-name": "node-%s", "type": "vhost-user-blk", "writable": true, "addr": { "path": "%s", "type": "unix"}}}`, id, id, vhostSock)
+	c := fmt.Sprintf(`{
+  "execute": "block-export-add",
+  "arguments": {
+    "id": "vhost-%s",
+    "node-name": "node-%s",
+    "type": "vhost-user-blk",
+    "writable": true,
+    "addr": {
+      "path": "%s",
+      "type": "unix"
+    }
+  }
+}`, id, id, vhostSock)
 	if err := v.Monitor.ExecuteCommand(c); err != nil {
 		return err
 	}
@@ -232,7 +198,12 @@ func (v *VolumeManager) ExposeVhostUser(id, vhostSock string) error {
 }
 
 func (v *VolumeManager) DeleteExporter(id string) error {
-	c := fmt.Sprintf(`{"execute": "block-export-del", "arguments": {"id": "vhost-%s"}}`, id)
+	c := fmt.Sprintf(`{
+  "execute": "block-export-del",
+  "arguments": {
+    "id": "vhost-%s"
+  }
+}`, id)
 	if err := v.Monitor.ExecuteCommand(c); err != nil {
 		return err
 	}
@@ -240,27 +211,34 @@ func (v *VolumeManager) DeleteExporter(id string) error {
 
 }
 
-func (v *VolumeManager) CreateSnapshot(imageID, snapshotID, snapshot string) error {
-	// TODO use blockdev-snapshot instead of blockdev-snapshot-sync however it is a pain to get the right sequence correctly and it is very poor documented so for now using blockdev-snapshot-sync
-	//	v.createImage(snapshot, snapshotID, "0", "qcow2")
-	//	cmdBlockSnap := fmt.Sprintf(`{
-	//  "execute": "blockdev-snapshot",
-	//  "arguments": {
-	//    "node": "node-%s",
-	//    "overlay": "node-%s"
-	//  }
-	//}`, imageID, snapshotID)
+func (v *VolumeManager) CreateSnapshot(imageID, snapshotID, image, snapshot string) error {
+	cmd := exec.Command("qemu-img", "create", "-f", "qcow2", "-F", "qcow2", "-b", image, snapshot)
+	stdoutStderr, err := cmd.CombinedOutput()
+	fmt.Printf("execute: qemu-img output: %s \n", stdoutStderr)
+	if err != nil {
+		return fmt.Errorf("qemu-img failed output: %s err:%v", stdoutStderr, err)
+	}
+	cmdBlockAdd := fmt.Sprintf(`{
+  "execute": "blockdev-add","arguments": {
+    "driver": "qcow2",
+    "file": {"driver": "file","filename": "%s"},
+    "backing": null,
+    "node-name": "node-%s"}}`, snapshot, snapshotID)
+
 	cmdBlockSnap := fmt.Sprintf(`{
-  "execute": "blockdev-snapshot-sync",
+  "execute": "blockdev-snapshot",
   "arguments": {
-    "node-name": "node-%s",
-    "snapshot-file": "%s",
-    "snapshot-node-name": "node-%s",
-    "format": "qcow2"
-  }
-}`, imageID, snapshot, snapshotID)
-	if err := v.Monitor.ExecuteCommand(cmdBlockSnap); err != nil {
-		return err
+    "node": "node-%s",
+    "overlay": "node-%s"}}`, imageID, snapshotID)
+	cmds := []string{
+		cmdBlockAdd,
+		cmdBlockSnap,
+	}
+
+	for _, c := range cmds {
+		if err := v.Monitor.ExecuteCommand(c); err != nil {
+			return err
+		}
 	}
 	return nil
 }

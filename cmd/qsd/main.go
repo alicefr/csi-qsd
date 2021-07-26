@@ -228,12 +228,13 @@ func (c *server) CreateSnapshot(ctx context.Context, snapshot *qsd.Snapshot) (*q
 	}
 	dir := fmt.Sprintf("%s/%s", imagesDir, snapshot.SourceVolumeID)
 	s := fmt.Sprintf("%s/%s-%s", dir, snapshotPrefix, snapshot.ID)
+	b := fmt.Sprintf("%s/%s", dir, diskImg)
 	if _, err := os.Stat(dir); err != nil {
 		errMessage := fmt.Sprintf("Failed checking the directory for snapshot %s:%v", snapshot.ID, err)
 		return failed(errMessage, err)
 	}
 
-	if err := volManager.CreateSnapshot(snapshot.VolumeToSnapshot, snapshot.ID, s); err != nil {
+	if err := volManager.CreateSnapshot(snapshot.VolumeToSnapshot, snapshot.ID, b, s); err != nil {
 		errMessage := fmt.Sprintf("Cannot snapshot %s: %v", snapshot.ID, err)
 		return failed(errMessage, err)
 	}
