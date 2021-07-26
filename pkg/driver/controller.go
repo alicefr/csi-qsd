@@ -8,6 +8,7 @@ import (
 
 	"github.com/alicefr/csi-qsd/pkg/qsd"
 	csi "github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -17,6 +18,11 @@ import (
 // createImageID cuts the ID it removes the pvc- prefix and takes the first 8 chars
 func createImageID(ID string) string {
 	return strings.TrimPrefix(ID, "pvc-")[:8]
+}
+
+// createSnapshotID cuts the ID it removes the snapshot- prefix and takes the first 8 chars
+func createSnapshotID(ID string) string {
+	return strings.TrimPrefix(ID, "snapshot-")[:8]
 }
 
 // CreateVolume creates a new volume from the given request. The function is
@@ -167,31 +173,31 @@ func (d *Driver) ControllerGetCapabilities(context.Context, *csi.ControllerGetCa
 
 func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	id := req.GetName()
-	sourceID := req.GetSourceVolumeId()
 	if id == "" {
 		return nil, status.Error(codes.InvalidArgument, "CreateSnapshot Name must be provided")
 	}
 
-	if sourceID == "" {
+	longImageID := req.GetSourceVolumeId()
+	if longImageID == "" {
 		return nil, status.Error(codes.InvalidArgument, "CreateSnapshot Source Volume ID must be provided")
 	}
 
 	log := d.log.WithFields(logrus.Fields{
 		"req_name":             id,
-		"req_source_volume_id": sourceID,
+		"req_source_volume_id": longImageID,
 		"req_parameters":       req.GetParameters(),
 		"method":               "controller_create_snapshot",
 	})
-	source, ok := d.storage[sourceID]
+	source, ok := d.storage[longImageID]
 	if !ok {
-		return nil, status.Error(codes.Internal, "Source volume not found in the storage")
+		return nil, status.Errorf(codes.Internal, "Source volume %s not found in the storage", longImageID)
 	}
 	var s Snapshot
 	s, ok = d.snapshots[id]
 	if !ok {
 		s = Snapshot{
-			id:       id,
-			sourceID: sourceID,
+			id:       createSnapshotID(id),
+			sourceID: longImageID,
 			node:     source.node,
 		}
 		d.snapshots[id] = s
@@ -209,8 +215,8 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	defer conn.Close()
 	image := &qsd.Snapshot{
 		ID:               s.id,
-		SourceVolumeID:   s.sourceID,
-		VolumeToSnapshot: s.sourceID,
+		SourceVolumeID:   createImageID(s.sourceID),
+		VolumeToSnapshot: createImageID(s.sourceID),
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -218,9 +224,21 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	log.Info("create snapshot with the QSD")
 	_, err = client.CreateSnapshot(ctx, image)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Error for creating the exporter %v", err)
+		return nil, status.Errorf(codes.Internal, "Error in creating the snapshot %v", err)
 	}
-	return &csi.CreateSnapshotResponse{}, nil
+	tstamp, err := ptypes.TimestampProto(time.Now())
+	if err != nil {
+		return nil, fmt.Errorf("couldn't convert protobuf timestamp to go time.Time: %s",
+			err.Error())
+	}
+	return &csi.CreateSnapshotResponse{
+		Snapshot: &csi.Snapshot{
+			SnapshotId:     id,
+			SourceVolumeId: longImageID,
+			ReadyToUse:     true,
+			CreationTime:   tstamp,
+		},
+	}, nil
 }
 
 // DeleteSnapshot will be called by the CO to delete a snapshot.
@@ -249,7 +267,7 @@ func (d *Driver) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequ
 	defer conn.Close()
 	image := &qsd.Snapshot{
 		ID:             s.id,
-		SourceVolumeID: s.sourceID,
+		SourceVolumeID: createImageID(s.sourceID),
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
