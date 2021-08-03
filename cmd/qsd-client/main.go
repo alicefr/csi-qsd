@@ -15,7 +15,7 @@ limitations under the License.
 */
 package main
 
-import "github.com/alicefr/csi-qsd/qsd-client/cmd"
+import "github.com/alicefr/csi-qsd/cmd/qsd-client/cmd"
 
 func main() {
 	cmd.Execute()
