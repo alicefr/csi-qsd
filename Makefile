@@ -5,13 +5,10 @@ DIR :=  $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 TEST_DIR=$(DIR)test-qmp
 
 .PHONY: build
-build: clean-$(BIN_DIR)/$(BIN_CSI)
+build:
 	go build -o $(BIN_DIR)/qsd-server ./cmd/qsd
 	go build -o $(BIN_DIR)/driver ./cmd/driver
-
-.PHONY: build-$(BIN_QSD_CLI)
-build-client: 
-	go build -o $(BIN_DIR)/$(BIN_QMP_CLI) ./qsd-client
+	go build -o $(BIN_DIR)/$(BIN_QMP_CLI) ./cmd/qsd-client
 
 .PHONY: test
 test:
@@ -58,5 +55,3 @@ clean-test-dir:
 clean:
 	@rm -rf $(BIN_DIR)
 
-clean-$(BIN_DIR)/$(BIN_CSI):
-	rm -f $(BIN_DIR)/$(BIN_CSI)
