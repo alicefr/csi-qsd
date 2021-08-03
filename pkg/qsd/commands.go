@@ -78,6 +78,10 @@ func (q *QMPMonitor) ExecuteCommand(qmpCmd string) error {
 	return nil
 }
 
+func (q *QMPMonitor) Events() (<-chan qmp.Event, error) {
+	return q.monitor.Events()
+}
+
 const (
 	GB = 1024 * 1024 * 1024
 	MB = 1024 * 1024
@@ -167,9 +171,7 @@ func (v *VolumeManager) DeleteVolume(id string) error {
 	c := fmt.Sprintf(`{
   "execute": "blockdev-del",
   "arguments": {
-    "node-name": "node-%s"
-  }
-}`, id)
+    "node-name": "node-%s"}}`, id)
 	if err := v.Monitor.ExecuteCommand(c); err != nil {
 		return err
 	}
@@ -241,4 +243,34 @@ func (v *VolumeManager) CreateSnapshot(imageID, snapshotID, image, snapshot stri
 		}
 	}
 	return nil
+}
+
+func (v *VolumeManager) StreamImage(base, overlay string) error {
+	jobID := "job0"
+	cmdBlockstream := fmt.Sprintf(`{
+    "execute": "block-stream",
+    "arguments": {
+        "device": "node-%s",
+        "job-id": "%s",
+	"base-node": "node-%s"}}`, overlay, jobID, base)
+	if err := v.Monitor.ExecuteCommand(cmdBlockstream); err != nil {
+		return err
+	}
+
+	chEvents, err := v.Monitor.Events()
+	if err != nil {
+		return fmt.Errorf("Failed creating monitor event %v", err)
+	}
+	for {
+		select {
+		case <-time.After(time.Second * 10):
+			return fmt.Errorf("Timeout in dismissing job %s", jobID)
+		case event := <-chEvents:
+			fmt.Printf("Events %v \n", event)
+			if event.Event == "BLOCK_JOB_COMPLETED" {
+				fmt.Printf("Dismissed job %s \n", jobID)
+				return nil
+			}
+		}
+	}
 }

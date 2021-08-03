@@ -66,10 +66,7 @@ var snapshotDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "Delete a snapshot",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		image, err := cmd.Flags().GetString("image")
-		if err != nil {
-			log.Fatalf("Error getting image exporter: %v", err)
-		}
+		var err error
 		var name string
 		name, err = cmd.Flags().GetString("name")
 		if err != nil {
@@ -80,6 +77,7 @@ var snapshotDeleteCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("Error getting the source for the snapshot: %v", err)
 		}
+		top, err := cmd.Flags().GetString("top-layer")
 		// Create client to the QSD grpc server on the node where the volume has to be created
 		var opts []grpc.DialOption
 		opts = append(opts, grpc.WithInsecure())
@@ -93,9 +91,9 @@ var snapshotDeleteCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 		s := &qsd.Snapshot{
-			ID:               name,
-			SourceVolumeID:   source,
-			VolumeToSnapshot: image,
+			ID:             name,
+			SourceVolumeID: source,
+			UpperLayer:     top,
 		}
 		// Delete Snapshot
 		log.Info("delete snapshot with the QSD")
@@ -118,4 +116,5 @@ func init() {
 	snapshotCmd.MarkFlagRequired("source")
 	snapshotCmd.AddCommand(snapshotCreateCmd)
 	snapshotCmd.AddCommand(snapshotDeleteCmd)
+	snapshotDeleteCmd.PersistentFlags().String("top-layer", "", "Name of the upperlayer")
 }

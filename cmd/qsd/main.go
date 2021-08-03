@@ -247,28 +247,33 @@ func (c *server) CreateSnapshot(ctx context.Context, snapshot *qsd.Snapshot) (*q
 }
 
 func (c *server) DeleteSnapshot(ctx context.Context, snapshot *qsd.Snapshot) (*qsd.Response, error) {
-	log.Infof("Create new monitor to snapshot")
+	log.Infof("Create new monitor to delete snapshot")
 	// TODO In order to delete a snapshot its content needs to be copied in the upper layer and once the blockdev is not in use anymore it can be removed
-	//volManager, err := qsd.NewVolumeManager(qsdSock)
-	//defer volManager.Disconnect()
-	//if err != nil {
-	//	errMessage := fmt.Sprintf("Failed creating the qsd monitor for snapshot %s:%v", snapshot.ID, err)
-	//	return failed(errMessage, err)
-	//}
-	//dir := fmt.Sprintf("%s/%s", imagesDir, snapshot.SourceVolumeID)
-	//s := fmt.Sprintf("%s/%s-%s", dir, snapshotPrefix, snapshot.ID)
-	//if _, err := os.Stat(dir); err != nil {
-	//	errMessage := fmt.Sprintf("Failed checking the directory for snapshot %s:%v", snapshot.ID, err)
-	//	return failed(errMessage, err)
-	//}
+	volManager, err := qsd.NewVolumeManager(qsdSock)
+	defer volManager.Disconnect()
+	if err != nil {
+		errMessage := fmt.Sprintf("Failed creating the qsd monitor for snapshot %s:%v", snapshot.ID, err)
+		return failed(errMessage, err)
+	}
+	if err := volManager.StreamImage(snapshot.ID, snapshot.UpperLayer); err != nil {
+		errMessage := fmt.Sprintf("Cannot delete volume %s: %v", snapshot.ID, err)
+		return failed(errMessage, err)
+	}
+
+	dir := fmt.Sprintf("%s/%s", imagesDir, snapshot.SourceVolumeID)
+	s := fmt.Sprintf("%s/%s-%s", dir, snapshotPrefix, snapshot.ID)
+	if _, err := os.Stat(dir); err != nil {
+		errMessage := fmt.Sprintf("Failed checking the directory for snapshot %s:%v", snapshot.ID, err)
+		return failed(errMessage, err)
+	}
 	//	if err := volManager.DeleteVolume(snapshot.ID); err != nil {
 	//		errMessage := fmt.Sprintf("Cannot delete volume %s: %v", snapshot.ID, err)
 	//		return failed(errMessage, err)
 	//	}
 
-	//	if err := os.Remove(s); err != nil {
-	//		errMessage := fmt.Sprintf("Cannot delete snapshot %s: %v", snapshot.ID, err)
-	//		return failed(errMessage, err)
-	//	}
+	if err := os.Remove(s); err != nil {
+		errMessage := fmt.Sprintf("Cannot delete snapshot %s: %v", snapshot.ID, err)
+		return failed(errMessage, err)
+	}
 	return &qsd.Response{}, nil
 }
