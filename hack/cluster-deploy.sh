@@ -8,6 +8,7 @@ CLUSTER=k8s-qsd
 kubectl delete -f deployment/driver.yaml
 docker exec -ti k8s-qsd-control-plane crictl rmi ${IMAGE_DRIVER}
 docker exec -ti k8s-qsd-control-plane crictl rmi ${IMAGE_QSD}
+kubectl  delete po -l name=qsd
 set -ex
 kind load docker-image --name ${CLUSTER}  ${IMAGE_DRIVER}
 kind load docker-image --name ${CLUSTER} ${IMAGE_QSD}
