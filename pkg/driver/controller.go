@@ -177,30 +177,45 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 		return nil, status.Error(codes.InvalidArgument, "CreateSnapshot Name must be provided")
 	}
 
-	longImageID := req.GetSourceVolumeId()
-	if longImageID == "" {
+	imageID := req.GetSourceVolumeId()
+	if imageID == "" {
 		return nil, status.Error(codes.InvalidArgument, "CreateSnapshot Source Volume ID must be provided")
 	}
 
 	log := d.log.WithFields(logrus.Fields{
 		"req_name":             id,
-		"req_source_volume_id": longImageID,
+		"req_source_volume_id": imageID,
 		"req_parameters":       req.GetParameters(),
 		"method":               "controller_create_snapshot",
 	})
-	source, ok := d.storage[longImageID]
+
+	// Retrieve base image
+	source, ok := d.storage[imageID]
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "Source volume %s not found in the storage", longImageID)
+		return nil, status.Errorf(codes.Internal, "Source volume %s not found in the storage", imageID)
 	}
-	var s Snapshot
-	s, ok = d.snapshots[id]
-	if !ok {
-		s = Snapshot{
-			id:       createSnapshotID(id),
-			sourceID: longImageID,
-			node:     source.node,
-		}
-		d.snapshots[id] = s
+	if _, ok := d.snapshots[id]; ok {
+		log.Info("Snapshot already created")
+		return &csi.CreateSnapshotResponse{
+			Snapshot: &csi.Snapshot{
+				SnapshotId:     id,
+				SourceVolumeId: imageID,
+				ReadyToUse:     true,
+			},
+		}, nil
+
+	}
+	baseID := ""
+	qsdBaseID := createImageID(imageID)
+	// It isn't the first snapshot
+	if source.activeLayer != "" {
+		baseID = source.activeLayer
+		qsdBaseID = createSnapshotID(baseID)
+	}
+	s := Snapshot{
+		baseID: baseID,
+		node:   source.node,
+		source: imageID,
 	}
 
 	log.Info("create snapshot is called")
@@ -209,14 +224,14 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	opts = append(opts, grpc.WithInsecure())
 	conn, err := grpc.Dial(fmt.Sprintf("%s:%s", s.node, d.port), opts...)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to connect to the QSD server for node %s:%v", s.node, err)
+		return nil, status.Errorf(codes.Internal, "Failed to connect to the QSD server for node %s:%v", source.node, err)
 	}
 	client := qsd.NewQsdServiceClient(conn)
 	defer conn.Close()
 	image := &qsd.Snapshot{
-		ID:               s.id,
-		SourceVolumeID:   createImageID(s.sourceID),
-		VolumeToSnapshot: createImageID(s.sourceID),
+		ID:               createSnapshotID(id),
+		SourceVolumeID:   createImageID(imageID),
+		VolumeToSnapshot: qsdBaseID,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -226,6 +241,10 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Error in creating the snapshot %v", err)
 	}
+	// Snapshot successfully created store it
+	d.snapshots[id] = s
+	source.activeLayer = id
+	log.Info("successfully add snapshot %v", s)
 	tstamp, err := ptypes.TimestampProto(time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("couldn't convert protobuf timestamp to go time.Time: %s",
@@ -234,7 +253,7 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
 			SnapshotId:     id,
-			SourceVolumeId: longImageID,
+			SourceVolumeId: imageID,
 			ReadyToUse:     true,
 			CreationTime:   tstamp,
 		},
@@ -266,8 +285,8 @@ func (d *Driver) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequ
 	client := qsd.NewQsdServiceClient(conn)
 	defer conn.Close()
 	image := &qsd.Snapshot{
-		ID:             s.id,
-		SourceVolumeID: createImageID(s.sourceID),
+		ID:             createSnapshotID(id),
+		SourceVolumeID: createImageID(s.source),
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -277,6 +296,6 @@ func (d *Driver) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequ
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Error for creating the exporter %v", err)
 	}
-	d.deleteSnapshot(s.id)
+	d.deleteSnapshot(id)
 	return &csi.DeleteSnapshotResponse{}, nil
 }

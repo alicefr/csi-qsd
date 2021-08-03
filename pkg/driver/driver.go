@@ -26,16 +26,16 @@ const (
 )
 
 type Volume struct {
-	id        string
-	size      int64
-	node      string
-	snapshots []Snapshot
+	id          string
+	size        int64
+	node        string
+	activeLayer string
 }
 
 type Snapshot struct {
-	id       string
-	sourceID string
-	node     string
+	baseID string
+	node   string
+	source string
 }
 
 type Driver struct {

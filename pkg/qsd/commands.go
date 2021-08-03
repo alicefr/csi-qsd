@@ -216,7 +216,7 @@ func (v *VolumeManager) CreateSnapshot(imageID, snapshotID, image, snapshot stri
 	stdoutStderr, err := cmd.CombinedOutput()
 	fmt.Printf("execute: qemu-img output: %s \n", stdoutStderr)
 	if err != nil {
-		return fmt.Errorf("qemu-img failed output: %s err:%v", stdoutStderr, err)
+		return fmt.Errorf("%v failed output: %s err:%v", cmd, stdoutStderr, err)
 	}
 	cmdBlockAdd := fmt.Sprintf(`{
   "execute": "blockdev-add","arguments": {
