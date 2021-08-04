@@ -60,14 +60,23 @@ func (q *QMPMonitor) Disconnect() {
 	q.monitor.Disconnect()
 }
 
-func (q *QMPMonitor) ExecuteCommand(qmpCmd string) error {
+func (q *QMPMonitor) ExecuteCommandRaw(qmpCmd string) ([]byte, error) {
 	cmd := []byte(qmpCmd)
 	fmt.Printf("Executed command %s\n", qmpCmd)
 	raw, err := q.monitor.Run(cmd)
 	if err != nil {
-		return fmt.Errorf("failed running qmp command %s: %v", qmpCmd, err)
+		return raw, fmt.Errorf("failed running qmp command %s: %v", qmpCmd, err)
 	}
 	fmt.Printf("result: %s\n", string(raw))
+	return raw, nil
+
+}
+
+func (q *QMPMonitor) ExecuteCommand(qmpCmd string) error {
+	raw, err := q.ExecuteCommandRaw(qmpCmd)
+	if err != nil {
+		return err
+	}
 	var result statusResult
 	err = json.Unmarshal(raw, &result)
 	if err != nil {
@@ -273,4 +282,75 @@ func (v *VolumeManager) StreamImage(base, overlay string) error {
 			}
 		}
 	}
+}
+
+type ImageInfo struct {
+	Filename              string           `json:"filename"`
+	Format                string           `json:"format"`
+	VirtualSize           int              `json:"virtual-size"`
+	BackingFile           string           `json:"backing_file"`
+	FullBackingFilename   string           `json:"full-backing-filename"`
+	BackingFilenameFormat string           `json:"backing-filename-format"`
+	Snapshots             []SnapshotInfo   `json:"snapshots"`
+	BackingImage          BackingImageInfo `json:"backing-image"`
+}
+
+type BackingImageInfo struct {
+	Filename    string `json:"filename"`
+	Format      string `json:"format"`
+	VirtualSize int    `json:"virtual-size"`
+}
+
+type SnapshotInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	VMStateSize int    `json:"vm-state-size"`
+	DateSec     int    `json:"date-sec"`
+	DateNsec    int    `json:"date-nsec"`
+	VMClockSec  int    `json:"vm-clock-sec"`
+	VMClockNsec int    `json:"vm-clock-nsec"`
+}
+
+type NameBlockNode struct {
+	Ro               bool      `json:"ro"`
+	Drv              string    `json:"drv"`
+	Encrypted        bool      `json:"encrypted"`
+	File             string    `json:"file"`
+	NodeName         string    `json:"node-name"`
+	BackingFileDepth int       `json:"backing_file_depth"`
+	Bps              int       `json:"bps"`
+	BpsRd            int       `json:"bps_rd"`
+	BpsWr            int       `json:"bps_wr"`
+	Iops             int       `json:"iops"`
+	IopsRd           int       `json:"iops_rd"`
+	IopsWr           int       `json:"iops_wr"`
+	BpsMax           int       `json:"bps_max"`
+	BpsRdMax         int       `json:"bps_rd_max"`
+	BpsWrMax         int       `json:"bps_wr_max"`
+	IopsMax          int       `json:"iops_max"`
+	IopsRdMax        int       `json:"iops_rd_max"`
+	IopsWrMax        int       `json:"iops_wr_max"`
+	IopsSize         int       `json:"iops_size"`
+	WriteThreshold   int       `json:"write_threshold"`
+	Image            ImageInfo `json:"image"`
+}
+
+type QueryNameBlockNodesReturn struct {
+	ID     string          `json:"id"`
+	Return []NameBlockNode `json:"return"`
+}
+
+func (v *VolumeManager) GetNameBlockNodes() ([]NameBlockNode, error) {
+	cmdQueryNamedBlockNodes := `{ "execute": "query-named-block-nodes" }`
+	raw, err := v.Monitor.ExecuteCommandRaw(cmdQueryNamedBlockNodes)
+	if err != nil {
+		return []NameBlockNode{}, err
+	}
+	var result QueryNameBlockNodesReturn
+	err = json.Unmarshal(raw, &result)
+	if err != nil {
+		return []NameBlockNode{}, fmt.Errorf("failed parsing result %v", err)
+	}
+
+	return result.Return, nil
 }

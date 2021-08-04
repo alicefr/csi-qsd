@@ -248,7 +248,6 @@ func (c *server) CreateSnapshot(ctx context.Context, snapshot *qsd.Snapshot) (*q
 
 func (c *server) DeleteSnapshot(ctx context.Context, snapshot *qsd.Snapshot) (*qsd.Response, error) {
 	log.Infof("Create new monitor to delete snapshot")
-	// TODO In order to delete a snapshot its content needs to be copied in the upper layer and once the blockdev is not in use anymore it can be removed
 	volManager, err := qsd.NewVolumeManager(qsdSock)
 	defer volManager.Disconnect()
 	if err != nil {
@@ -256,7 +255,7 @@ func (c *server) DeleteSnapshot(ctx context.Context, snapshot *qsd.Snapshot) (*q
 		return failed(errMessage, err)
 	}
 	if err := volManager.StreamImage(snapshot.ID, snapshot.UpperLayer); err != nil {
-		errMessage := fmt.Sprintf("Cannot delete volume %s: %v", snapshot.ID, err)
+		errMessage := fmt.Sprintf("Cannot copy snapshot %s in the upper layer: %v", snapshot.ID, err)
 		return failed(errMessage, err)
 	}
 
@@ -276,4 +275,23 @@ func (c *server) DeleteSnapshot(ctx context.Context, snapshot *qsd.Snapshot) (*q
 		return failed(errMessage, err)
 	}
 	return &qsd.Response{}, nil
+}
+
+func (c *server) ListVolumes(ctx context.Context, _ *qsd.ListVolumesParams) (*qsd.Response, error) {
+	log.Infof("Create new monitor to list the volumes")
+	volManager, err := qsd.NewVolumeManager(qsdSock)
+	defer volManager.Disconnect()
+	if err != nil {
+		errMessage := fmt.Sprintf("Failed creating the qsd monitor:%s:%v", err)
+		return failed(errMessage, err)
+	}
+	nodes, err := volManager.GetNameBlockNodes()
+	if err != nil {
+		errMessage := fmt.Sprintf("Cannot list volumes: %v", err)
+		return failed(errMessage, err)
+	}
+	return &qsd.Response{
+		Success: true,
+		Message: fmt.Sprintf("Volumes: %v", nodes),
+	}, nil
 }

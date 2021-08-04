@@ -10,6 +10,7 @@ service QsdService {
 	rpc DeleteExporter(Image) returns (Response) {}
 	rpc CreateSnapshot(Snapshot) returns (Response) {}
 	rpc DeleteSnapshot(Snapshot) returns (Response) {}
+	rpc ListVolumes(ListVolumesParams) returns (Response) {}
 }
 
 message Image {
@@ -23,6 +24,8 @@ message Snapshot {
 	string VolumeToSnapshot = 3;
 	string UpperLayer = 4;
 }
+
+message ListVolumesParams {}
 
 message Response {
   bool success = 1;

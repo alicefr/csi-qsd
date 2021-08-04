@@ -24,6 +24,7 @@ type QsdServiceClient interface {
 	DeleteExporter(ctx context.Context, in *Image, opts ...grpc.CallOption) (*Response, error)
 	CreateSnapshot(ctx context.Context, in *Snapshot, opts ...grpc.CallOption) (*Response, error)
 	DeleteSnapshot(ctx context.Context, in *Snapshot, opts ...grpc.CallOption) (*Response, error)
+	ListVolumes(ctx context.Context, in *ListVolumesParams, opts ...grpc.CallOption) (*Response, error)
 }
 
 type qsdServiceClient struct {
@@ -88,6 +89,15 @@ func (c *qsdServiceClient) DeleteSnapshot(ctx context.Context, in *Snapshot, opt
 	return out, nil
 }
 
+func (c *qsdServiceClient) ListVolumes(ctx context.Context, in *ListVolumesParams, opts ...grpc.CallOption) (*Response, error) {
+	out := new(Response)
+	err := c.cc.Invoke(ctx, "/alicefr.csi.pkg.qsd.QsdService/ListVolumes", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // QsdServiceServer is the server API for QsdService service.
 // All implementations must embed UnimplementedQsdServiceServer
 // for forward compatibility
@@ -98,6 +108,7 @@ type QsdServiceServer interface {
 	DeleteExporter(context.Context, *Image) (*Response, error)
 	CreateSnapshot(context.Context, *Snapshot) (*Response, error)
 	DeleteSnapshot(context.Context, *Snapshot) (*Response, error)
+	ListVolumes(context.Context, *ListVolumesParams) (*Response, error)
 	mustEmbedUnimplementedQsdServiceServer()
 }
 
@@ -122,6 +133,9 @@ func (UnimplementedQsdServiceServer) CreateSnapshot(context.Context, *Snapshot) 
 }
 func (UnimplementedQsdServiceServer) DeleteSnapshot(context.Context, *Snapshot) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSnapshot not implemented")
+}
+func (UnimplementedQsdServiceServer) ListVolumes(context.Context, *ListVolumesParams) (*Response, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListVolumes not implemented")
 }
 func (UnimplementedQsdServiceServer) mustEmbedUnimplementedQsdServiceServer() {}
 
@@ -244,6 +258,24 @@ func _QsdService_DeleteSnapshot_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QsdService_ListVolumes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListVolumesParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QsdServiceServer).ListVolumes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/alicefr.csi.pkg.qsd.QsdService/ListVolumes",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QsdServiceServer).ListVolumes(ctx, req.(*ListVolumesParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // QsdService_ServiceDesc is the grpc.ServiceDesc for QsdService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -274,6 +306,10 @@ var QsdService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteSnapshot",
 			Handler:    _QsdService_DeleteSnapshot_Handler,
+		},
+		{
+			MethodName: "ListVolumes",
+			Handler:    _QsdService_ListVolumes_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
