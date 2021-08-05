@@ -253,7 +253,7 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
 			SnapshotId:     id,
-			SourceVolumeId: imageID,
+			SourceVolumeId: baseID,
 			ReadyToUse:     true,
 			CreationTime:   tstamp,
 		},
