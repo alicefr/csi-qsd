@@ -16,13 +16,12 @@ service QsdService {
 message Image {
 	string ID = 1 ;
 	int64 size = 2;
+	
 }
 
 message Snapshot {
 	string ID = 1;
 	string SourceVolumeID = 2;
-	string VolumeToSnapshot = 3;
-	string UpperLayer = 4;
 }
 
 message ListVolumesParams {}

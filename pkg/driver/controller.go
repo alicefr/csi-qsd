@@ -206,11 +206,9 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 
 	}
 	baseID := ""
-	qsdBaseID := createImageID(imageID)
 	// It isn't the first snapshot
 	if source.activeLayer != "" {
 		baseID = source.activeLayer
-		qsdBaseID = createSnapshotID(baseID)
 	}
 	s := Snapshot{
 		baseID: baseID,
@@ -229,9 +227,8 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	client := qsd.NewQsdServiceClient(conn)
 	defer conn.Close()
 	image := &qsd.Snapshot{
-		ID:               createSnapshotID(id),
-		SourceVolumeID:   createImageID(imageID),
-		VolumeToSnapshot: qsdBaseID,
+		ID:             createSnapshotID(id),
+		SourceVolumeID: createImageID(imageID),
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
