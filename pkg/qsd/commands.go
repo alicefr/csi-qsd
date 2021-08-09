@@ -242,6 +242,23 @@ func (v *VolumeManager) DeleteExporter(id string) error {
 
 }
 
+func (v *VolumeManager) CreateSnapshotWithBackingNode(imageID, snapshotID, image, snapshot, backing string) error {
+
+	cmd := exec.Command("qemu-img", "create", "-f", "qcow2", "-F", "qcow2", "-b", image, snapshot)
+	stdoutStderr, err := cmd.CombinedOutput()
+	fmt.Printf("execute: qemu-img output: %s \n", stdoutStderr)
+	if err != nil {
+		return fmt.Errorf("%v failed output: %s err:%v", cmd, stdoutStderr, err)
+	}
+	cmdBlockAdd := fmt.Sprintf(`{
+  "execute": "blockdev-add","arguments": {
+    "driver": "qcow2",
+    "file": {"driver": "file","filename": "%s"},
+    "backing": "node-%s",
+    "node-name": "node-%s"}}`, snapshot, backing, snapshotID)
+	return v.Monitor.ExecuteCommand(cmdBlockAdd)
+}
+
 func (v *VolumeManager) CreateSnapshot(imageID, snapshotID, image, snapshot string) error {
 	cmd := exec.Command("qemu-img", "create", "-f", "qcow2", "-F", "qcow2", "-b", image, snapshot)
 	stdoutStderr, err := cmd.CombinedOutput()

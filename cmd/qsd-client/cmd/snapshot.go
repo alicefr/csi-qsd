@@ -106,5 +106,4 @@ func init() {
 	snapshotCmd.MarkFlagRequired("source")
 	snapshotCmd.AddCommand(snapshotCreateCmd)
 	snapshotCmd.AddCommand(snapshotDeleteCmd)
-	snapshotDeleteCmd.PersistentFlags().String("top-layer", "", "Name of the upperlayer")
 }

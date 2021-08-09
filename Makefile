@@ -44,6 +44,7 @@ cluster-down:
 
 .PHONY: up
 up:
+	rm -rf test-qsd
 	mkdir -p test-qsd
 	docker run --rm -ti \
 		--name qsd \

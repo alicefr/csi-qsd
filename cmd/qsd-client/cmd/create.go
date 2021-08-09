@@ -21,14 +21,20 @@ var createCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("Error getting image exporter: %v", err)
 		}
+		source, err := cmd.Flags().GetString("from")
+		if err != nil {
+			log.Fatalf("Error getting source of the image: %v", err)
+		}
+
 		var size int64
 		size, err = cmd.Flags().GetInt64("size")
-		if err != nil {
+		if err != nil && source == "" {
 			log.Fatalf("Error getting size exporter: %v", err)
 		}
 		i := &qsd.Image{
-			ID:   image,
-			Size: size,
+			ID:         image,
+			Size:       size,
+			FromVolume: source,
 		}
 		// Create client to the QSD grpc server on the node where the volume has to be created
 		var opts []grpc.DialOption
@@ -64,6 +70,6 @@ func init() {
 	rootCmd.AddCommand(createCmd)
 	createCmd.Flags().String("image", "image", "Name of the image")
 	createCmd.Flags().Int64("size", 0, "Size of the image")
+	createCmd.Flags().String("from", "", "Name of the image to use as source to create the snapshot")
 	createCmd.MarkFlagRequired("image")
-	createCmd.MarkFlagRequired("size")
 }
