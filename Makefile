@@ -42,6 +42,16 @@ cluster-deploy:	images
 cluster-down:
 	hack/cluster-delete.sh
 
+.PHONY: up
+up:
+	mkdir -p test-qsd
+	docker run --rm -ti \
+		--name qsd \
+		--security-opt label=disable  \
+		-p 4444:4444 -v $(PWD)/test-qsd:/var/run \
+		-u $(shell id -u ${USER}):$(shell id -g ${USER}) \
+		qsd/qsd
+
 .PHONY: vendor
 vendor:
 	@GO111MODULE=on go mod tidy

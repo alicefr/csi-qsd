@@ -3,6 +3,7 @@ package qsd
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -167,11 +168,14 @@ func (v *VolumeManager) dismissJob(id string) error {
 }
 
 func (v *VolumeManager) createImage(image, id, size, format string) error {
-	cmd := exec.Command("qemu-img", "create", "-f", format, image, size)
-	stdoutStderr, err := cmd.CombinedOutput()
-	fmt.Printf("execute: qemu-img output: %s \n", stdoutStderr)
-	if err != nil {
-		return fmt.Errorf("qemu-img failed err:%v", stdoutStderr, err)
+	// if the image already exists do not recreate
+	if _, err := os.Stat(image); os.IsNotExist(err) {
+		cmd := exec.Command("qemu-img", "create", "-f", format, image, size)
+		stdoutStderr, err := cmd.CombinedOutput()
+		fmt.Printf("execute: qemu-img output: %s \n", stdoutStderr)
+		if err != nil {
+			return fmt.Errorf("qemu-img failed err:%v", stdoutStderr, err)
+		}
 	}
 	cmdBlockAddFile := fmt.Sprintf(`{
   "execute": "blockdev-add",
@@ -287,16 +291,13 @@ func (v *VolumeManager) StreamImage(base, overlay string) error {
 func (v *VolumeManager) CommitImage(node, top, base string) error {
 	jobID := "job0"
 	cmdBlockstream := fmt.Sprintf(`{
-    "execute": "block-stream",
+    "execute": "block-commit",
     "arguments": {
         "device": "node-%s",
         "job-id": "%s",
 	"top": "%s",
         "base": "%s"}}`, node, jobID, top, base)
-	if err := v.Monitor.ExecuteCommand(cmdBlockstream); err != nil {
-		return err
-	}
-	return v.dismissJob(jobID)
+	return v.Monitor.ExecuteCommand(cmdBlockstream)
 }
 
 type ImageInfo struct {
