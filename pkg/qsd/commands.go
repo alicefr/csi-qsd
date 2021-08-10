@@ -66,7 +66,7 @@ func (q *QMPMonitor) ExecuteCommandRaw(qmpCmd string) ([]byte, error) {
 	fmt.Printf("Executed command %s\n", qmpCmd)
 	raw, err := q.monitor.Run(cmd)
 	if err != nil {
-		return raw, fmt.Errorf("failed running qmp command %s: %v", qmpCmd, err)
+		return raw, err
 	}
 	fmt.Printf("result: %s\n", string(raw))
 	return raw, nil
@@ -138,16 +138,7 @@ func (v *VolumeManager) CreateNbdServer(exporter, path string) error {
 	return nil
 }
 
-func (v *VolumeManager) dismissJob(id string) error {
-	cmdJobDismiss := fmt.Sprintf(`{
-  "execute": "job-dismiss",
-  "arguments": {
-    "id": "%s"
-  }
-}`, id)
-	if err := v.Monitor.ExecuteCommand(cmdJobDismiss); err != nil {
-		return err
-	}
+func (v *VolumeManager) waitJobToComplete(id string) error {
 	chEvents, err := v.Monitor.Events()
 	if err != nil {
 		return fmt.Errorf("Failed creating monitor event %v", err)
@@ -159,12 +150,38 @@ func (v *VolumeManager) dismissJob(id string) error {
 		case event := <-chEvents:
 			fmt.Printf("Events %v \n", event)
 			if event.Event == "BLOCK_JOB_COMPLETED" {
-				fmt.Printf("Dismissed job %s \n", id)
+				fmt.Printf("Completed job %s \n", id)
 				return nil
 			}
 		}
 	}
-	return nil
+}
+
+func (v *VolumeManager) completeJob(id string) error {
+	cmdJobDismiss := fmt.Sprintf(`{
+  "execute": "job-complete",
+  "arguments": {
+    "id": "%s"
+  }
+}`, id)
+	if err := v.Monitor.ExecuteCommand(cmdJobDismiss); err != nil {
+		return err
+	}
+	return v.waitJobToComplete(id)
+}
+
+func (v *VolumeManager) dismissJob(id string) error {
+	cmdJobDismiss := fmt.Sprintf(`{
+  "execute": "job-dismiss",
+  "arguments": {
+    "id": "%s"
+  }
+}`, id)
+	if err := v.Monitor.ExecuteCommand(cmdJobDismiss); err != nil {
+		return err
+	}
+	return v.waitJobToComplete(id)
+
 }
 
 func (v *VolumeManager) createImage(image, id, size, format string) error {
@@ -196,15 +213,22 @@ func (v *VolumeManager) CreateVolume(image, id, size string) error {
 	return v.createImage(image, id, size, "qcow2")
 }
 
+func isErrorBusyForBlockJob(err error) bool {
+	if err == nil {
+		return false
+	}
+	if strings.Contains(err.Error(), "block device is in use by block job") {
+		return true
+	}
+	return false
+}
+
 func (v *VolumeManager) DeleteVolume(id string) error {
 	c := fmt.Sprintf(`{
   "execute": "blockdev-del",
   "arguments": {
     "node-name": "node-%s"}}`, id)
-	if err := v.Monitor.ExecuteCommand(c); err != nil {
-		return err
-	}
-	return nil
+	return v.Monitor.ExecuteCommand(c)
 }
 
 func (v *VolumeManager) ExposeVhostUser(id, vhostSock string) error {
@@ -299,22 +323,29 @@ func (v *VolumeManager) StreamImage(base, overlay string) error {
         "device": "node-%s",
         "job-id": "%s",
 	"base-node": "node-%s"}}`, overlay, jobID, base)
-	if err := v.Monitor.ExecuteCommand(cmdBlockstream); err != nil {
-		return err
-	}
-	return v.dismissJob(jobID)
+	//	if err := v.Monitor.ExecuteCommand(cmdBlockstream); err != nil {
+	//		return err
+	//	}
+	//	return v.dismissJob(jobID)
+	return v.Monitor.ExecuteCommand(cmdBlockstream)
 }
 
 func (v *VolumeManager) CommitImage(node, top, base string) error {
 	jobID := "job0"
-	cmdBlockstream := fmt.Sprintf(`{
+	cmdBlockCommit := fmt.Sprintf(`{
     "execute": "block-commit",
     "arguments": {
         "device": "node-%s",
         "job-id": "%s",
 	"top": "%s",
         "base": "%s"}}`, node, jobID, top, base)
-	return v.Monitor.ExecuteCommand(cmdBlockstream)
+
+	err := v.Monitor.ExecuteCommand(cmdBlockCommit)
+	if err != nil {
+		return nil
+	}
+
+	return v.completeJob(jobID)
 }
 
 type ImageInfo struct {
