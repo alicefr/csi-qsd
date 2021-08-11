@@ -115,6 +115,11 @@ func (c *Server) CreateVolume(ctx context.Context, image *Image) (*Response, err
 
 func (c *Server) ExposeVhostUser(ctx context.Context, image *Image) (*Response, error) {
 	log.Infof("Create new monitor to expose vhost user")
+	i, ok := c.images[image.ID]
+	if !ok {
+		errMessage := fmt.Sprintf("Image %s not found", image.ID)
+		return failed(errMessage, fmt.Errorf(errMessage))
+	}
 	volManager, err := NewVolumeManager(c.qsdSock)
 	defer volManager.Disconnect()
 	if err != nil {
@@ -136,7 +141,7 @@ func (c *Server) ExposeVhostUser(ctx context.Context, image *Image) (*Response, 
 		}
 	}
 
-	if err := volManager.ExposeVhostUser(image.ID, socket); err != nil {
+	if err := volManager.ExposeVhostUser(i.QSDID, socket); err != nil {
 		errMessage := fmt.Sprintf("Cannot create socket for the volume %s: %v", image.ID, err)
 		return failed(errMessage, err)
 	}
@@ -160,6 +165,11 @@ func deleteIfEmptyDir(path string) error {
 }
 
 func (c *Server) DeleteExporter(ctx context.Context, image *Image) (*Response, error) {
+	i, ok := c.images[image.ID]
+	if !ok {
+		errMessage := fmt.Sprintf("Image %s not found", image.ID)
+		return failed(errMessage, fmt.Errorf(errMessage))
+	}
 	log.Infof("Create new monitor to delete exporter")
 	volManager, err := NewVolumeManager(c.qsdSock)
 	defer volManager.Disconnect()
@@ -167,7 +177,7 @@ func (c *Server) DeleteExporter(ctx context.Context, image *Image) (*Response, e
 		errMessage := fmt.Sprintf("Failed creating the qsd monitor fol vol %s:%v", image.ID, err)
 		return failed(errMessage, err)
 	}
-	if err := volManager.DeleteExporter(image.ID); err != nil {
+	if err := volManager.DeleteExporter(i.QSDID); err != nil {
 		errMessage := fmt.Sprintf("Cannot delete exporter for volume %s: %v", image.ID, err)
 		return failed(errMessage, err)
 	}

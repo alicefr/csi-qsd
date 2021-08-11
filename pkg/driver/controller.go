@@ -281,7 +281,6 @@ func (d *Driver) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequ
 		log.Errorf("Failed to delete volume %s: because not found", id)
 		return &csi.DeleteSnapshotResponse{}, nil
 	}
-	log.Info("snapshot was deleted")
 	// Create client to the QSD grpc server on the node where the volume has to be created
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithInsecure())
@@ -292,8 +291,8 @@ func (d *Driver) DeleteSnapshot(ctx context.Context, req *csi.DeleteSnapshotRequ
 	client := qsd.NewQsdServiceClient(conn)
 	defer conn.Close()
 	image := &qsd.Snapshot{
-		ID:             createSnapshotID(id),
-		SourceVolumeID: createImageID(s.source),
+		ID:             id,
+		SourceVolumeID: s.source,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

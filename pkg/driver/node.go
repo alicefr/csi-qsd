@@ -40,11 +40,11 @@ func (s *Driver) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolu
 	}
 
 	// Mount vhost-user socket dir into the target directory
-	socketDir := fmt.Sprintf("%s/%s", SocketDir, createImageID(volumeID))
-	//	socket := fmt.Sprintf("%s/%s/%s", socketDir, vhostSock)
-	//	if _, err := os.Stat(); err != nil {
-	//		return nil, status.Errorf(codes.Internal, "failed in stating the socket for volume %s: %v", volumeID, err)
-	//	}
+	socketDir := fmt.Sprintf("%s/%s", SocketDir, volumeID)
+	//socket := fmt.Sprintf("%s/%s/%s", socketDir, vhostSock)
+	//if _, err := os.Stat(socket); err != nil {
+	//	return nil, status.Errorf(codes.Internal, "failed in stating the socket for volume %s: %v", volumeID, err)
+	//}
 
 	if err := syscall.Mount(socketDir, req.GetTargetPath(), "none", syscall.MS_BIND, ""); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed in mounting the socket dir for volume %s: %v", volumeID, err)
@@ -62,17 +62,7 @@ func (s *Driver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublish
 		"method":    "node_unpublish_volume",
 	})
 	volumeID := req.GetVolumeId()
-	// Unmount and remove the socket directory
-	socketDir := fmt.Sprintf("%s/%s", SocketDir, volumeID)
-	err := syscall.Unmount(socketDir, 0)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, status.Errorf(codes.Internal, "failed in unmounting the socket dir for volume %s: %v", volumeID, err)
-	}
-	if err := os.RemoveAll(socketDir); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed in removing the socket dir for volume %s: %v", volumeID, err)
-	}
-
-	err = syscall.Unmount(req.GetTargetPath(), 0)
+	err := syscall.Unmount(req.GetTargetPath(), 0)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, status.Errorf(codes.Internal, "failed in unmounting the target dir for volume %s: %v", volumeID, err)
 	}
