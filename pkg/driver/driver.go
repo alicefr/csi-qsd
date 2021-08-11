@@ -26,10 +26,9 @@ const (
 )
 
 type Volume struct {
-	id          string
-	size        int64
-	node        string
-	activeLayer string
+	id   string
+	size int64
+	node string
 }
 
 type Snapshot struct {

@@ -39,22 +39,39 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		"size":      size.RequiredBytes,
 		"method":    "controller_create_volume",
 	})
-	id := createImageID(req.Name)
+	var source string
+	contentSource := req.GetVolumeContentSource()
+	if contentSource != nil {
+		if contentSource.GetSnapshot() != nil {
+			source = contentSource.GetSnapshot().GetSnapshotId()
+			if source == "" {
+				return nil, status.Error(codes.InvalidArgument, "snapshot ID is empty")
+			}
+		}
+		if contentSource.GetVolume() != nil {
+			source = contentSource.GetVolume().GetVolumeId()
+			if source == "" {
+				return nil, status.Error(codes.InvalidArgument, "volume source ID is empty")
+			}
+		}
+
+	}
+
 	// TODO smart scheduling we need already to know where the volume has to be created
 	// HACK hard code the node just for PoC
 	v, ok := d.storage[volumeName]
 	if !ok {
 		v = Volume{
-			id:   id,
+			id:   volumeName,
 			size: size.RequiredBytes,
 			node: "k8s-qsd-control-plane",
 		}
 		d.storage[volumeName] = v
 	}
-
 	image := &qsd.Image{
-		ID:   id,
-		Size: v.size,
+		ID:         volumeName,
+		Size:       v.size,
+		FromVolume: source,
 	}
 	// Create client to the QSD grpc server on the node where the volume has to be created
 	var opts []grpc.DialOption
@@ -130,13 +147,11 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	// Remove exporter
-	log.Info("remove exporter with the QSD")
 	_, err = client.DeleteExporter(ctx, image)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Error for creating the exporter %v", err)
 	}
 	// Remove Volume
-	log.Info("remove backend image with the QSD")
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	_, err = client.DeleteVolume(ctx, image)
@@ -189,11 +204,6 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 		"method":               "controller_create_snapshot",
 	})
 
-	// Retrieve base image
-	source, ok := d.storage[imageID]
-	if !ok {
-		return nil, status.Errorf(codes.Internal, "Source volume %s not found in the storage", imageID)
-	}
 	if _, ok := d.snapshots[id]; ok {
 		log.Info("Snapshot already created")
 		return &csi.CreateSnapshotResponse{
@@ -205,13 +215,13 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 		}, nil
 
 	}
-	baseID := ""
-	// It isn't the first snapshot
-	if source.activeLayer != "" {
-		baseID = source.activeLayer
+	// Retrieve base image
+	source, ok := d.storage[imageID]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "Source volume %s not found in the storage", imageID)
 	}
 	s := Snapshot{
-		baseID: baseID,
+		baseID: id,
 		node:   source.node,
 		source: imageID,
 	}
@@ -226,9 +236,10 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	}
 	client := qsd.NewQsdServiceClient(conn)
 	defer conn.Close()
+
 	image := &qsd.Snapshot{
-		ID:             createSnapshotID(id),
-		SourceVolumeID: createImageID(imageID),
+		ID:             id,
+		SourceVolumeID: imageID,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -240,7 +251,6 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	}
 	// Snapshot successfully created store it
 	d.snapshots[id] = s
-	source.activeLayer = id
 	log.Info("successfully add snapshot %v", s)
 	tstamp, err := ptypes.TimestampProto(time.Now())
 	if err != nil {
@@ -250,7 +260,7 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 	return &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
 			SnapshotId:     id,
-			SourceVolumeId: baseID,
+			SourceVolumeId: imageID,
 			ReadyToUse:     true,
 			CreationTime:   tstamp,
 		},
