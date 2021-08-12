@@ -37,6 +37,7 @@ RUN dnf update -y && dnf install -y \
   libaio \
   liburing \
   qemu-img \
+  procps-ng \
   && dnf clean all
 
 VOLUME /share
