@@ -9,6 +9,7 @@ build:
 	go build -o $(BIN_DIR)/qsd-server ./cmd/qsd
 	go build -o $(BIN_DIR)/driver ./cmd/driver
 	go build -o $(BIN_DIR)/$(BIN_QMP_CLI) ./cmd/qsd-client
+	go build -o $(BIN_DIR)/metadata ./cmd/metadata
 
 .PHONY: test
 test:
@@ -28,7 +29,8 @@ image-driver: build
 .PHONY: generate
 generate:
 	protoc --go_out=. --go_opt=paths=source_relative  --go-grpc_out=. --go-grpc_opt=paths=source_relative  --experimental_allow_proto3_optional \
-	pkg/qsd/qsd.proto 
+	pkg/qsd/qsd.proto \
+	pkg/metadata/metadata.proto
 
 .PHONY: cluster-up
 cluster-up:	
