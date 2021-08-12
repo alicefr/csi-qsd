@@ -41,17 +41,32 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	})
 	var source string
 	contentSource := req.GetVolumeContentSource()
+	var contentSourceResp *csi.VolumeContentSource
 	if contentSource != nil {
 		if contentSource.GetSnapshot() != nil {
 			source = contentSource.GetSnapshot().GetSnapshotId()
 			if source == "" {
 				return nil, status.Error(codes.InvalidArgument, "snapshot ID is empty")
 			}
+			contentSourceResp = &csi.VolumeContentSource{
+				Type: &csi.VolumeContentSource_Snapshot{
+					Snapshot: &csi.VolumeContentSource_SnapshotSource{
+						SnapshotId: source,
+					},
+				},
+			}
 		}
 		if contentSource.GetVolume() != nil {
 			source = contentSource.GetVolume().GetVolumeId()
 			if source == "" {
 				return nil, status.Error(codes.InvalidArgument, "volume source ID is empty")
+			}
+			contentSourceResp = &csi.VolumeContentSource{
+				Type: &csi.VolumeContentSource_Volume{
+					Volume: &csi.VolumeContentSource_VolumeSource{
+						VolumeId: source,
+					},
+				},
 			}
 		}
 
@@ -111,6 +126,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		Volume: &csi.Volume{
 			VolumeId:      volumeName,
 			CapacityBytes: size.RequiredBytes,
+			ContentSource: contentSourceResp,
 		},
 	}
 	log.Info("response", "volume was created")
