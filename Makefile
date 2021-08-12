@@ -32,6 +32,7 @@ generate:
 
 .PHONY: cluster-up
 cluster-up:	
+	mkdir -p /tmp/kind-cluster-test
 	hack/cluster-create.sh
 
 .PHONY: cluster-deploy

@@ -10,5 +10,7 @@ nodes:
     containerPath: /dev/kvm
   - hostPath: /usr/lib/modules
     containerPath: /usr/lib/modules
+  - hostPath: /tmp/kind-cluster-test
+    containerPath: /var/run/qsd/images
 featureGates:
   VolumeSnapshotDataSource: true
