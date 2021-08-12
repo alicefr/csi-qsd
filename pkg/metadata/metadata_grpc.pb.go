@@ -18,8 +18,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MetadataServiceClient interface {
-	GetVolumes(ctx context.Context, in *Node, opts ...grpc.CallOption) (*ResponseMetadata, error)
-	AddMetadata(ctx context.Context, in *Metadata, opts ...grpc.CallOption) (*ResponseMetadata, error)
+	GetVolumes(ctx context.Context, in *Node, opts ...grpc.CallOption) (*ResponseGetVolumes, error)
+	AddMetadata(ctx context.Context, in *Metadata, opts ...grpc.CallOption) (*ResponseAddMetadata, error)
 }
 
 type metadataServiceClient struct {
@@ -30,8 +30,8 @@ func NewMetadataServiceClient(cc grpc.ClientConnInterface) MetadataServiceClient
 	return &metadataServiceClient{cc}
 }
 
-func (c *metadataServiceClient) GetVolumes(ctx context.Context, in *Node, opts ...grpc.CallOption) (*ResponseMetadata, error) {
-	out := new(ResponseMetadata)
+func (c *metadataServiceClient) GetVolumes(ctx context.Context, in *Node, opts ...grpc.CallOption) (*ResponseGetVolumes, error) {
+	out := new(ResponseGetVolumes)
 	err := c.cc.Invoke(ctx, "/alicefr.csi.pkg.qsd.MetadataService/GetVolumes", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -39,8 +39,8 @@ func (c *metadataServiceClient) GetVolumes(ctx context.Context, in *Node, opts .
 	return out, nil
 }
 
-func (c *metadataServiceClient) AddMetadata(ctx context.Context, in *Metadata, opts ...grpc.CallOption) (*ResponseMetadata, error) {
-	out := new(ResponseMetadata)
+func (c *metadataServiceClient) AddMetadata(ctx context.Context, in *Metadata, opts ...grpc.CallOption) (*ResponseAddMetadata, error) {
+	out := new(ResponseAddMetadata)
 	err := c.cc.Invoke(ctx, "/alicefr.csi.pkg.qsd.MetadataService/AddMetadata", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -52,8 +52,8 @@ func (c *metadataServiceClient) AddMetadata(ctx context.Context, in *Metadata, o
 // All implementations must embed UnimplementedMetadataServiceServer
 // for forward compatibility
 type MetadataServiceServer interface {
-	GetVolumes(context.Context, *Node) (*ResponseMetadata, error)
-	AddMetadata(context.Context, *Metadata) (*ResponseMetadata, error)
+	GetVolumes(context.Context, *Node) (*ResponseGetVolumes, error)
+	AddMetadata(context.Context, *Metadata) (*ResponseAddMetadata, error)
 	mustEmbedUnimplementedMetadataServiceServer()
 }
 
@@ -61,10 +61,10 @@ type MetadataServiceServer interface {
 type UnimplementedMetadataServiceServer struct {
 }
 
-func (UnimplementedMetadataServiceServer) GetVolumes(context.Context, *Node) (*ResponseMetadata, error) {
+func (UnimplementedMetadataServiceServer) GetVolumes(context.Context, *Node) (*ResponseGetVolumes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetVolumes not implemented")
 }
-func (UnimplementedMetadataServiceServer) AddMetadata(context.Context, *Metadata) (*ResponseMetadata, error) {
+func (UnimplementedMetadataServiceServer) AddMetadata(context.Context, *Metadata) (*ResponseAddMetadata, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddMetadata not implemented")
 }
 func (UnimplementedMetadataServiceServer) mustEmbedUnimplementedMetadataServiceServer() {}
