@@ -32,14 +32,24 @@ type Server struct {
 	qsdSock      string
 	images       map[string]QCOWImage
 	activeLayers map[string]string
+	volManager   *VolumeManager
 }
 
-func NewServer(sock string) *Server {
+func NewServer(sock string) (*Server, error) {
+	volManager, err := NewVolumeManager(sock)
+	if err != nil {
+		return nil, fmt.Errorf("Failed creating the qsd monitor connection")
+	}
 	return &Server{
 		qsdSock:      sock,
 		images:       make(map[string]QCOWImage),
 		activeLayers: make(map[string]string),
-	}
+		volManager:   volManager,
+	}, nil
+}
+
+func (c *Server) Disconnect() {
+	c.volManager.Disconnect()
 }
 
 func failed(m string, err error) (*Response, error) {
@@ -67,13 +77,7 @@ func generateQSDID(id string) string {
 }
 
 func (c *Server) CreateVolume(ctx context.Context, image *Image) (*Response, error) {
-	log.Infof("Create new monitor for the volume creation")
-	volManager, err := NewVolumeManager(c.qsdSock)
-	if err != nil {
-		errMessage := fmt.Sprintf("Failed creating the qsd monitor fol vol %s:%v", image.ID, err)
-		return failed(errMessage, err)
-	}
-	defer volManager.Disconnect()
+	log.Infof("Create Volume %s", image.ID)
 	dir := fmt.Sprintf("%s/%s", imagesDir, image.ID)
 	// Create directory for the volume if it doesn't exists
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -87,7 +91,7 @@ func (c *Server) CreateVolume(ctx context.Context, image *Image) (*Response, err
 		VolumeRef: image.ID,
 	}
 	if image.FromVolume == "" {
-		if err := volManager.CreateVolume(qcowImage.File, qcowImage.QSDID, strconv.FormatInt(image.Size, 10)); err != nil {
+		if err := c.volManager.CreateVolume(qcowImage.File, qcowImage.QSDID, strconv.FormatInt(image.Size, 10)); err != nil {
 			errMessage := fmt.Sprintf("Failed creating the disk image %s:%v", image.ID, err)
 			return failed(errMessage, err)
 		}
@@ -98,7 +102,7 @@ func (c *Server) CreateVolume(ctx context.Context, image *Image) (*Response, err
 		if !ok {
 			return &Response{}, fmt.Errorf("Failed to delete the image %s: image not found", image.FromVolume)
 		}
-		if err := volManager.CreateSnapshotWithBackingNode(b.QSDID, qcowImage.QSDID, b.File, qcowImage.File, b.QSDID); err != nil {
+		if err := c.volManager.CreateSnapshotWithBackingNode(b.QSDID, qcowImage.QSDID, b.File, qcowImage.File, b.QSDID); err != nil {
 			errMessage := fmt.Sprintf("Cannot snapshot %s: %v", image.FromVolume, err)
 			return failed(errMessage, err)
 		}
@@ -114,18 +118,12 @@ func (c *Server) CreateVolume(ctx context.Context, image *Image) (*Response, err
 }
 
 func (c *Server) ExposeVhostUser(ctx context.Context, image *Image) (*Response, error) {
-	log.Infof("Create new monitor to expose vhost user")
+	log.Infof("Export vhost user for image %s", image.ID)
 	i, ok := c.images[image.ID]
 	if !ok {
 		errMessage := fmt.Sprintf("Image %s not found", image.ID)
 		return failed(errMessage, fmt.Errorf(errMessage))
 	}
-	volManager, err := NewVolumeManager(c.qsdSock)
-	if err != nil {
-		errMessage := fmt.Sprintf("Failed creating the qsd monitor fol vol %s:%v", image.ID, err)
-		return failed(errMessage, err)
-	}
-	defer volManager.Disconnect()
 	dir := fmt.Sprintf("%s/%s", socketDir, image.ID)
 	// Create directory for the socket if it doesn't exists
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -141,7 +139,7 @@ func (c *Server) ExposeVhostUser(ctx context.Context, image *Image) (*Response, 
 		}
 	}
 
-	if err := volManager.ExposeVhostUser(i.QSDID, socket); err != nil {
+	if err := c.volManager.ExposeVhostUser(i.QSDID, socket); err != nil {
 		errMessage := fmt.Sprintf("Cannot create socket for the volume %s: %v", image.ID, err)
 		return failed(errMessage, err)
 	}
@@ -165,24 +163,18 @@ func deleteIfEmptyDir(path string) error {
 }
 
 func (c *Server) DeleteExporter(ctx context.Context, image *Image) (*Response, error) {
+	log.Infof("Delete exporter %s", image.ID)
 	i, ok := c.images[image.ID]
 	if !ok {
 		errMessage := fmt.Sprintf("Image %s not found", image.ID)
 		return failed(errMessage, fmt.Errorf(errMessage))
 	}
-	log.Infof("Create new monitor to delete exporter")
-	volManager, err := NewVolumeManager(c.qsdSock)
-	if err != nil {
-		errMessage := fmt.Sprintf("Failed creating the qsd monitor fol vol %s:%v", image.ID, err)
-		return failed(errMessage, err)
-	}
-	defer volManager.Disconnect()
-	if err := volManager.DeleteExporter(i.QSDID); err != nil {
+	if err := c.volManager.DeleteExporter(i.QSDID); err != nil {
 		errMessage := fmt.Sprintf("Cannot delete exporter for volume %s: %v", image.ID, err)
 		return failed(errMessage, err)
 	}
 	dir := fmt.Sprintf("%s/%s", socketDir, image.ID)
-	if err = os.Remove(dir); err != nil {
+	if err := os.Remove(dir); err != nil {
 		errMessage := fmt.Sprintf("Cannot delete socket directory for volume %s: %v", image.ID, err)
 		return failed(errMessage, err)
 	}
@@ -190,7 +182,7 @@ func (c *Server) DeleteExporter(ctx context.Context, image *Image) (*Response, e
 }
 
 func (c *Server) CreateSnapshot(ctx context.Context, snapshot *Snapshot) (*Response, error) {
-	log.Infof("Create new monitor to snapshot")
+	log.Infof("Create Snapshot %s of image %s", snapshot.ID, snapshot.SourceVolumeID)
 	// Get active layer of the image
 	id, ok := c.activeLayers[snapshot.SourceVolumeID]
 	if !ok {
@@ -212,19 +204,13 @@ func (c *Server) CreateSnapshot(ctx context.Context, snapshot *Snapshot) (*Respo
 		File:           fmt.Sprintf("%s/%s-%s", dir, snapshotPrefix, generateQSDID(snapshot.ID)),
 		VolumeRef:      snapshot.ID,
 	}
-	volManager, err := NewVolumeManager(c.qsdSock)
-	if err != nil {
-		errMessage := fmt.Sprintf("Failed creating the qsd monitor for snapshot %s:%v", snapshot.ID, err)
-		return failed(errMessage, err)
-	}
-	defer volManager.Disconnect()
 	if i.RefCount < 1 {
-		if err := volManager.CreateSnapshot(i.QSDID, s.QSDID, i.File, s.File); err != nil {
+		if err := c.volManager.CreateSnapshot(i.QSDID, s.QSDID, i.File, s.File); err != nil {
 			errMessage := fmt.Sprintf("Cannot snapshot %s: %v", snapshot.ID, err)
 			return failed(errMessage, err)
 		}
 	} else {
-		if err := volManager.CreateSnapshotWithBackingNode(i.QSDID, s.QSDID, i.File, s.File, i.QSDID); err != nil {
+		if err := c.volManager.CreateSnapshotWithBackingNode(i.QSDID, s.QSDID, i.File, s.File, i.QSDID); err != nil {
 			errMessage := fmt.Sprintf("Cannot snapshot %s: %v", snapshot.ID, err)
 			return failed(errMessage, err)
 		}
@@ -240,7 +226,7 @@ func (c *Server) CreateSnapshot(ctx context.Context, snapshot *Snapshot) (*Respo
 }
 
 func (c *Server) DeleteVolume(ctx context.Context, image *Image) (*Response, error) {
-	log.Infof("Create new monitor to delete volume")
+	log.Infof("Delete image %s", image.ID)
 	// Get the active layer of the image
 	id, ok := c.activeLayers[image.ID]
 	if !ok {
@@ -251,12 +237,6 @@ func (c *Server) DeleteVolume(ctx context.Context, image *Image) (*Response, err
 	if !ok {
 		return &Response{}, fmt.Errorf("Failed to delete the image %s: image not found", image.ID)
 	}
-	volManager, err := NewVolumeManager(c.qsdSock)
-	if err != nil {
-		errMessage := fmt.Sprintf("Failed creating the qsd monitor fol vol %s:%v", image.ID, err)
-		return failed(errMessage, err)
-	}
-	defer volManager.Disconnect()
 	if i.RefCount < 1 && id == image.ID {
 		if err := c.deleteImage(id); err != nil {
 			errMessage := fmt.Sprintf("Failed deleting image %s:%v", image.ID, err)
@@ -307,16 +287,11 @@ func (c *Server) deleteNodeWithZeroReference(id string) error {
 }
 
 func (c *Server) deleteImage(id string) error {
-	volManager, err := NewVolumeManager(c.qsdSock)
-	if err != nil {
-		return fmt.Errorf("Failed creating the qsd monitor for image %s:%v", id, err)
-	}
-	defer volManager.Disconnect()
 	i, ok := c.images[id]
 	if !ok {
 		return fmt.Errorf("Image %s not found", id)
 	}
-	if err := volManager.DeleteVolume(i.QSDID); err != nil {
+	if err := c.volManager.DeleteVolume(i.QSDID); err != nil {
 		return err
 	}
 	if err := os.Remove(i.File); err != nil {
@@ -338,7 +313,7 @@ func (c *Server) deleteImage(id string) error {
 }
 
 func (c *Server) DeleteSnapshot(ctx context.Context, snapshot *Snapshot) (*Response, error) {
-	log.Infof("Create new monitor to delete snapshot")
+	log.Infof("Delete snapshot %s", snapshot.ID)
 	s, ok := c.images[snapshot.ID]
 	if !ok {
 		return &Response{}, fmt.Errorf("Failed to get snapshot to delete %s: image not found", snapshot.SourceVolumeID)
@@ -365,15 +340,8 @@ func (c *Server) DeleteSnapshot(ctx context.Context, snapshot *Snapshot) (*Respo
 }
 
 func (c *Server) ListVolumes(ctx context.Context, _ *ListVolumesParams) (*Response, error) {
-	log.Infof("Create new monitor to list the volumes")
-	volManager, err := NewVolumeManager(c.qsdSock)
-	if err != nil {
-		errMessage := fmt.Sprintf("Failed creating the qsd monitor:%s:%v", err)
-		return failed(errMessage, err)
-	}
-
-	defer volManager.Disconnect()
-	nodes, err := volManager.GetNameBlockNodes()
+	log.Infof("List the images")
+	nodes, err := c.volManager.GetNameBlockNodes()
 	if err != nil {
 		errMessage := fmt.Sprintf("Cannot list volumes: %v", err)
 		return failed(errMessage, err)

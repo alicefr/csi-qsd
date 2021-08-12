@@ -76,7 +76,11 @@ func main() {
 		log.Fatalln(err)
 	}
 	srv := grpc.NewServer()
-	qsd.RegisterQsdServiceServer(srv, qsd.NewServer(qsdSock))
+	qmpServer, err := qsd.NewServer(qsdSock)
+	if err != nil {
+		log.Fatalf("Starting connection with the QMP: %v", err)
+	}
+	qsd.RegisterQsdServiceServer(srv, qmpServer)
 	serError := make(chan error, 1)
 	go func() {
 		serError <- srv.Serve(lis)
