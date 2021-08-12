@@ -168,6 +168,7 @@ func (d *Driver) ControllerGetCapabilities(context.Context, *csi.ControllerGetCa
 	capabilities := []csi.ControllerServiceCapability_RPC_Type{
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 		csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
+		csi.ControllerServiceCapability_RPC_CLONE_VOLUME,
 	}
 
 	csiCaps := make([]*csi.ControllerServiceCapability, len(capabilities))
