@@ -69,11 +69,11 @@ func generateQSDID(id string) string {
 func (c *Server) CreateVolume(ctx context.Context, image *Image) (*Response, error) {
 	log.Infof("Create new monitor for the volume creation")
 	volManager, err := NewVolumeManager(c.qsdSock)
-	defer volManager.Disconnect()
 	if err != nil {
 		errMessage := fmt.Sprintf("Failed creating the qsd monitor fol vol %s:%v", image.ID, err)
 		return failed(errMessage, err)
 	}
+	defer volManager.Disconnect()
 	dir := fmt.Sprintf("%s/%s", imagesDir, image.ID)
 	// Create directory for the volume if it doesn't exists
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -121,11 +121,11 @@ func (c *Server) ExposeVhostUser(ctx context.Context, image *Image) (*Response, 
 		return failed(errMessage, fmt.Errorf(errMessage))
 	}
 	volManager, err := NewVolumeManager(c.qsdSock)
-	defer volManager.Disconnect()
 	if err != nil {
 		errMessage := fmt.Sprintf("Failed creating the qsd monitor fol vol %s:%v", image.ID, err)
 		return failed(errMessage, err)
 	}
+	defer volManager.Disconnect()
 	dir := fmt.Sprintf("%s/%s", socketDir, image.ID)
 	// Create directory for the socket if it doesn't exists
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -172,11 +172,11 @@ func (c *Server) DeleteExporter(ctx context.Context, image *Image) (*Response, e
 	}
 	log.Infof("Create new monitor to delete exporter")
 	volManager, err := NewVolumeManager(c.qsdSock)
-	defer volManager.Disconnect()
 	if err != nil {
 		errMessage := fmt.Sprintf("Failed creating the qsd monitor fol vol %s:%v", image.ID, err)
 		return failed(errMessage, err)
 	}
+	defer volManager.Disconnect()
 	if err := volManager.DeleteExporter(i.QSDID); err != nil {
 		errMessage := fmt.Sprintf("Cannot delete exporter for volume %s: %v", image.ID, err)
 		return failed(errMessage, err)
@@ -213,11 +213,11 @@ func (c *Server) CreateSnapshot(ctx context.Context, snapshot *Snapshot) (*Respo
 		VolumeRef:      snapshot.ID,
 	}
 	volManager, err := NewVolumeManager(c.qsdSock)
-	defer volManager.Disconnect()
 	if err != nil {
 		errMessage := fmt.Sprintf("Failed creating the qsd monitor for snapshot %s:%v", snapshot.ID, err)
 		return failed(errMessage, err)
 	}
+	defer volManager.Disconnect()
 	if i.RefCount < 1 {
 		if err := volManager.CreateSnapshot(i.QSDID, s.QSDID, i.File, s.File); err != nil {
 			errMessage := fmt.Sprintf("Cannot snapshot %s: %v", snapshot.ID, err)
@@ -252,11 +252,11 @@ func (c *Server) DeleteVolume(ctx context.Context, image *Image) (*Response, err
 		return &Response{}, fmt.Errorf("Failed to delete the image %s: image not found", image.ID)
 	}
 	volManager, err := NewVolumeManager(c.qsdSock)
-	defer volManager.Disconnect()
 	if err != nil {
 		errMessage := fmt.Sprintf("Failed creating the qsd monitor fol vol %s:%v", image.ID, err)
 		return failed(errMessage, err)
 	}
+	defer volManager.Disconnect()
 	if i.RefCount < 1 && id == image.ID {
 		if err := c.deleteImage(id); err != nil {
 			errMessage := fmt.Sprintf("Failed deleting image %s:%v", image.ID, err)
@@ -308,10 +308,10 @@ func (c *Server) deleteNodeWithZeroReference(id string) error {
 
 func (c *Server) deleteImage(id string) error {
 	volManager, err := NewVolumeManager(c.qsdSock)
-	defer volManager.Disconnect()
 	if err != nil {
 		return fmt.Errorf("Failed creating the qsd monitor for image %s:%v", id, err)
 	}
+	defer volManager.Disconnect()
 	i, ok := c.images[id]
 	if !ok {
 		return fmt.Errorf("Image %s not found", id)
@@ -367,11 +367,12 @@ func (c *Server) DeleteSnapshot(ctx context.Context, snapshot *Snapshot) (*Respo
 func (c *Server) ListVolumes(ctx context.Context, _ *ListVolumesParams) (*Response, error) {
 	log.Infof("Create new monitor to list the volumes")
 	volManager, err := NewVolumeManager(c.qsdSock)
-	defer volManager.Disconnect()
 	if err != nil {
 		errMessage := fmt.Sprintf("Failed creating the qsd monitor:%s:%v", err)
 		return failed(errMessage, err)
 	}
+
+	defer volManager.Disconnect()
 	nodes, err := volManager.GetNameBlockNodes()
 	if err != nil {
 		errMessage := fmt.Sprintf("Cannot list volumes: %v", err)

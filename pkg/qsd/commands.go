@@ -29,6 +29,9 @@ func NewVolumeManager(socket string) (*VolumeManager, error) {
 }
 
 func (v *VolumeManager) Disconnect() {
+	if v.Monitor == nil {
+		return
+	}
 	v.Monitor.Disconnect()
 }
 
