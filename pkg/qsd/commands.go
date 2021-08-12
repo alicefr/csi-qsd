@@ -11,21 +11,37 @@ import (
 	"time"
 
 	"github.com/digitalocean/go-qemu/qmp"
+	log "github.com/sirupsen/logrus"
 )
 
 type VolumeManager struct {
 	Monitor *QMPMonitor
 }
 
+type communicationChan struct {
+	Monitor *QMPMonitor
+	err     error
+}
+
 func NewVolumeManager(socket string) (*VolumeManager, error) {
 	if socket == "" {
 		return nil, fmt.Errorf("The socket cannot be empty")
 	}
-	q, err := CreateNewUnixMonitor(socket)
-	if err != nil {
-		return nil, err
+	log.Infof("Create new NewVolumeManager for socket %s", socket)
+	c1 := make(chan communicationChan, 1)
+	go func() {
+		q, err := CreateNewUnixMonitor(socket)
+		c1 <- communicationChan{Monitor: q, err: err}
+	}()
+	select {
+	case res := <-c1:
+		if res.err != nil {
+			return nil, res.err
+		}
+		return &VolumeManager{Monitor: res.Monitor}, nil
+	case <-time.After(5 * time.Second):
+		return nil, fmt.Errorf("Timeout the communication with the qmp socket %s", socket)
 	}
-	return &VolumeManager{Monitor: q}, nil
 }
 
 func (v *VolumeManager) Disconnect() {
