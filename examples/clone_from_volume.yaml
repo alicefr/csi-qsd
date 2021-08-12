@@ -1,24 +1,22 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: pvc-copy-from-snap
+  name: pvc-clone-from-pvc
 spec:
   storageClassName: csi-qsd
   dataSource:
-    name: pvc-snapshot2 
-    kind: VolumeSnapshot
-    apiGroup: snapshot.storage.k8s.io
+    name: pvc
+    kind: PersistentVolumeClaim
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
       storage: 1Gi
 ---
----
 apiVersion: v1
 kind: Pod
 metadata:
-  name: my-pod-pvc-copy-from-snap
+  name: pod-clone
 spec:
   containers:
     - name: my-container
@@ -33,4 +31,5 @@ spec:
   volumes:
     - name: my-volume
       persistentVolumeClaim:
-        claimName: pvc-copy-from-snap
+        claimName: pvc-clone-from-pvc
+

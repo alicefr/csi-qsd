@@ -14,7 +14,7 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: my-pod
+  name: pod-pvc
 spec:
   containers:
     - name: my-container
