@@ -35,6 +35,7 @@ type Snapshot struct {
 	baseID string
 	node   string
 	source string
+	size   int64
 }
 
 type Driver struct {

@@ -221,13 +221,14 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 		"method":               "controller_create_snapshot",
 	})
 
-	if _, ok := d.snapshots[id]; ok {
+	if t, ok := d.snapshots[id]; ok {
 		log.Info("Snapshot already created")
 		return &csi.CreateSnapshotResponse{
 			Snapshot: &csi.Snapshot{
 				SnapshotId:     id,
 				SourceVolumeId: imageID,
 				ReadyToUse:     true,
+				SizeBytes:      t.size,
 			},
 		}, nil
 
@@ -241,6 +242,7 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 		baseID: id,
 		node:   source.node,
 		source: imageID,
+		size:   source.size,
 	}
 
 	log.Info("create snapshot is called")
@@ -279,6 +281,7 @@ func (d *Driver) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequ
 			SnapshotId:     id,
 			SourceVolumeId: imageID,
 			ReadyToUse:     true,
+			SizeBytes:      source.size,
 			CreationTime:   tstamp,
 		},
 	}, nil
