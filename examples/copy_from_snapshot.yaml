@@ -13,3 +13,24 @@ spec:
   resources:
     requests:
       storage: 1Gi
+---
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod-pvc-copy-from-snap
+spec:
+  containers:
+    - name: my-container
+      image: busybox
+      command:
+        - sleep
+        - "3600"
+      volumeMounts:
+        - mountPath: /pvc
+          name: my-volume
+      imagePullPolicy: IfNotPresent
+  volumes:
+    - name: my-volume
+      persistentVolumeClaim:
+        claimName: pvc-copy-from-snap
