@@ -10,7 +10,7 @@ service QsdService {
 	rpc DeleteExporter(Image) returns (Response) {}
 	rpc CreateSnapshot(Snapshot) returns (Response) {}
 	rpc DeleteSnapshot(Snapshot) returns (Response) {}
-	rpc ListVolumes(ListVolumesParams) returns (Response) {}
+	rpc ListVolumes(ListVolumesParams) returns (ResponseListVolumes) {}
 }
 
 message Image {
@@ -30,4 +30,18 @@ message ListVolumesParams {}
 message Response {
   bool success = 1;
   string message = 2;
+}
+
+message ResponseListVolumes {
+//	repeated QCOWImage volumes = 1;
+	map<string, QCOWImage> volumes = 1;
+}
+
+message QCOWImage {
+        string QSDID = 1;      
+        string BackingImageID = 2;
+        string File = 3;
+        uint32 RefCount = 4;
+        string VolumeRef = 5;
+	uint32 Depth = 6;
 }

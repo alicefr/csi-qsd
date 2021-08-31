@@ -19,18 +19,10 @@ const (
 	snapshotPrefix = "snap"
 )
 
-type QCOWImage struct {
-	QSDID          string
-	BackingImageID string
-	File           string
-	RefCount       int
-	VolumeRef      string
-}
-
 type Server struct {
 	QsdServiceServer
 	qsdSock      string
-	images       map[string]QCOWImage
+	images       map[string]*QCOWImage
 	activeLayers map[string]string
 	volManager   *VolumeManager
 }
@@ -42,7 +34,7 @@ func NewServer(sock string) (*Server, error) {
 	}
 	return &Server{
 		qsdSock:      sock,
-		images:       make(map[string]QCOWImage),
+		images:       make(map[string]*QCOWImage),
 		activeLayers: make(map[string]string),
 		volManager:   volManager,
 	}, nil
@@ -84,7 +76,7 @@ func (c *Server) CreateVolume(ctx context.Context, image *Image) (*Response, err
 		errMessage := fmt.Sprintf("Cannot create directory for the volume:%s", image.ID)
 		return failed(errMessage, err)
 	}
-	qcowImage := QCOWImage{
+	qcowImage := &QCOWImage{
 		File:      fmt.Sprintf("%s/%s", dir, diskImg),
 		QSDID:     generateQSDID(image.ID),
 		RefCount:  0,
@@ -95,6 +87,7 @@ func (c *Server) CreateVolume(ctx context.Context, image *Image) (*Response, err
 			errMessage := fmt.Sprintf("Failed creating the disk image %s:%v", image.ID, err)
 			return failed(errMessage, err)
 		}
+		qcowImage.Depth = 0
 	} else {
 		log.Infof("Create image %s from %s", image.ID, image.FromVolume)
 		qcowImage.BackingImageID = image.FromVolume
@@ -108,6 +101,7 @@ func (c *Server) CreateVolume(ctx context.Context, image *Image) (*Response, err
 		}
 		b.RefCount++
 		c.images[image.FromVolume] = b
+		qcowImage.Depth = b.Depth + 1
 
 	}
 	c.images[image.ID] = qcowImage
@@ -188,7 +182,7 @@ func (c *Server) CreateSnapshot(ctx context.Context, snapshot *Snapshot) (*Respo
 	if !ok {
 		return &Response{}, fmt.Errorf("Failed to delete the image %s: active layer not found", snapshot.SourceVolumeID)
 	}
-	var i QCOWImage
+	var i *QCOWImage
 	i, ok = c.images[id]
 	if !ok {
 		return &Response{}, fmt.Errorf("Failed to delete the image %s: image not found", snapshot.SourceVolumeID)
@@ -198,11 +192,12 @@ func (c *Server) CreateSnapshot(ctx context.Context, snapshot *Snapshot) (*Respo
 		errMessage := fmt.Sprintf("Failed checking the directory for snapshot %s:%v", snapshot.ID, err)
 		return failed(errMessage, err)
 	}
-	s := QCOWImage{
+	s := &QCOWImage{
 		QSDID:          generateQSDID(snapshot.ID),
 		BackingImageID: id,
 		File:           fmt.Sprintf("%s/%s-%s", dir, snapshotPrefix, generateQSDID(snapshot.ID)),
 		VolumeRef:      snapshot.ID,
+		Depth:          i.Depth + 1,
 	}
 	if i.RefCount < 1 {
 		if err := c.volManager.CreateSnapshot(i.QSDID, s.QSDID, i.File, s.File); err != nil {
@@ -232,7 +227,7 @@ func (c *Server) DeleteVolume(ctx context.Context, image *Image) (*Response, err
 	if !ok {
 		return &Response{}, fmt.Errorf("Failed to delete the image %s: active layer not found", image.ID)
 	}
-	var i QCOWImage
+	var i *QCOWImage
 	i, ok = c.images[id]
 	if !ok {
 		return &Response{}, fmt.Errorf("Failed to delete the image %s: image not found", image.ID)
@@ -339,19 +334,9 @@ func (c *Server) DeleteSnapshot(ctx context.Context, snapshot *Snapshot) (*Respo
 	return &Response{}, nil
 }
 
-func (c *Server) ListVolumes(ctx context.Context, _ *ListVolumesParams) (*Response, error) {
+func (c *Server) ListVolumes(ctx context.Context, _ *ListVolumesParams) (*ResponseListVolumes, error) {
 	log.Infof("List the images")
-	nodes, err := c.volManager.GetNameBlockNodes()
-	if err != nil {
-		errMessage := fmt.Sprintf("Cannot list volumes: %v", err)
-		return failed(errMessage, err)
-	}
-	var sb strings.Builder
-	for _, n := range nodes {
-		sb.WriteString(fmt.Sprintf("node=%s file=%s backing image=%v \n", n.NodeName, n.Image.Filename, n.Image.BackingImage))
-	}
-	return &Response{
-		Success: true,
-		Message: sb.String(),
+	return &ResponseListVolumes{
+		Volumes: c.images,
 	}, nil
 }

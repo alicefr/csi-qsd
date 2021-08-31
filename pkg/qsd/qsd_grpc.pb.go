@@ -24,7 +24,7 @@ type QsdServiceClient interface {
 	DeleteExporter(ctx context.Context, in *Image, opts ...grpc.CallOption) (*Response, error)
 	CreateSnapshot(ctx context.Context, in *Snapshot, opts ...grpc.CallOption) (*Response, error)
 	DeleteSnapshot(ctx context.Context, in *Snapshot, opts ...grpc.CallOption) (*Response, error)
-	ListVolumes(ctx context.Context, in *ListVolumesParams, opts ...grpc.CallOption) (*Response, error)
+	ListVolumes(ctx context.Context, in *ListVolumesParams, opts ...grpc.CallOption) (*ResponseListVolumes, error)
 }
 
 type qsdServiceClient struct {
@@ -89,8 +89,8 @@ func (c *qsdServiceClient) DeleteSnapshot(ctx context.Context, in *Snapshot, opt
 	return out, nil
 }
 
-func (c *qsdServiceClient) ListVolumes(ctx context.Context, in *ListVolumesParams, opts ...grpc.CallOption) (*Response, error) {
-	out := new(Response)
+func (c *qsdServiceClient) ListVolumes(ctx context.Context, in *ListVolumesParams, opts ...grpc.CallOption) (*ResponseListVolumes, error) {
+	out := new(ResponseListVolumes)
 	err := c.cc.Invoke(ctx, "/alicefr.csi.pkg.qsd.QsdService/ListVolumes", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ type QsdServiceServer interface {
 	DeleteExporter(context.Context, *Image) (*Response, error)
 	CreateSnapshot(context.Context, *Snapshot) (*Response, error)
 	DeleteSnapshot(context.Context, *Snapshot) (*Response, error)
-	ListVolumes(context.Context, *ListVolumesParams) (*Response, error)
+	ListVolumes(context.Context, *ListVolumesParams) (*ResponseListVolumes, error)
 	mustEmbedUnimplementedQsdServiceServer()
 }
 
@@ -134,7 +134,7 @@ func (UnimplementedQsdServiceServer) CreateSnapshot(context.Context, *Snapshot) 
 func (UnimplementedQsdServiceServer) DeleteSnapshot(context.Context, *Snapshot) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSnapshot not implemented")
 }
-func (UnimplementedQsdServiceServer) ListVolumes(context.Context, *ListVolumesParams) (*Response, error) {
+func (UnimplementedQsdServiceServer) ListVolumes(context.Context, *ListVolumesParams) (*ResponseListVolumes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListVolumes not implemented")
 }
 func (UnimplementedQsdServiceServer) mustEmbedUnimplementedQsdServiceServer() {}
