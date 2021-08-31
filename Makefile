@@ -16,7 +16,7 @@ test:
 	@GO111MODULE=on go test -mod=vendor -v ./...
 
 .PHONY: images
-images: image-qsd  image-driver
+images: image-qsd image-driver image-metadata
 
 .PHONY: image-qsd
 image-qsd: build
@@ -25,6 +25,10 @@ image-qsd: build
 .PHONY: image-driver
 image-driver: build
 	docker build -t qsd/driver -f	dockerfiles/driver/Dockerfile .
+
+.PHONY: image-metadata
+image-metadata: build
+	docker build -t qsd/metadata -f dockerfiles/metadata/Dockerfile .
 
 .PHONY: generate
 generate:
