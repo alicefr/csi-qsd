@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
@@ -67,24 +68,34 @@ func NewMetadataServer() (*MetadataServer, error) {
 	}, err
 }
 
-func parseAnnotationsFromPVtoMetadata(pv *corev1.PersistentVolume) *Metadata {
+func parseAnnotationsFromPVtoMetadata(pv corev1.PersistentVolume) (*Metadata, error) {
+	var err error
+	var refCount int64
 	id, okID := pv.ObjectMeta.Annotations[annID]
 	qsdID, okQsdID := pv.ObjectMeta.Annotations[annQSDID]
 	bID, okBID := pv.ObjectMeta.Annotations[annBackingImageID]
+	if !okID {
+		return nil, fmt.Errorf("Annotation %s not found", annID)
+	}
+	if !okQsdID {
+		return nil, fmt.Errorf("Annotation %s not found", okQsdID)
+	}
+	if !okBID {
+		bID = ""
+	}
 	r, okR := pv.ObjectMeta.Annotations[annRefCount]
-	if okID && okBID && okQsdID && okR {
-		refCount, err := strconv.ParseInt(r, 10, 32)
+	if okR {
+		refCount, err = strconv.ParseInt(r, 10, 32)
 		if err != nil {
-			return err
-		}
-		return Metadata{
-			ID:             id,
-			QSDID:          qsdID,
-			RefCount:       refCount,
-			BackingImageID: bID,
+			return nil, err
 		}
 	}
-	return nil
+	return &Metadata{
+		ID:             id,
+		QSDID:          qsdID,
+		RefCount:       uint32(refCount),
+		BackingImageID: bID,
+	}, nil
 }
 
 func (s *MetadataServer) GetVolumes(ctx context.Context, node *Node) (*ResponseGetVolumes, error) {
@@ -97,14 +108,17 @@ func (s *MetadataServer) GetVolumes(ctx context.Context, node *Node) (*ResponseG
 	if err != nil {
 		return nil, err
 	}
-	var metadata []Metadata
+	var metadata []*Metadata
 	// Parse the annotations with the metadata information
-	for pv, _ := range pvList.Items {
-		if m := parseAnnotationsFromPVtoMetadata; m != nil {
+	for _, pv := range pvList.Items {
+		m, err := parseAnnotationsFromPVtoMetadata(pv)
+		if m != nil && err == nil {
 			metadata = append(metadata, m)
 		}
 	}
-	return m, nil
+	return &ResponseGetVolumes{
+		Volumes: metadata,
+	}, nil
 }
 
 func (s *MetadataServer) AddMetadata(context.Context, *Metadata) (*ResponseAddMetadata, error) {
