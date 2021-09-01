@@ -52,14 +52,14 @@ var listCmd = &cobra.Command{
 	},
 }
 
-type ByDepth []*qsd.QCOWImage
+type ByDepth []*qsd.Volume
 
 func (a ByDepth) Len() int           { return len(a) }
 func (a ByDepth) Less(i, j int) bool { return a[i].Depth < a[j].Depth }
 func (a ByDepth) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 func printTree(r *qsd.ResponseListVolumes) {
-	var sortedImages []*qsd.QCOWImage
+	var sortedImages []*qsd.Volume
 	for _, v := range r.GetVolumes() {
 		sortedImages = append(sortedImages, v)
 	}

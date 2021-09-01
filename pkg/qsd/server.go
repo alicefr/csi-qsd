@@ -19,6 +19,15 @@ const (
 	snapshotPrefix = "snap"
 )
 
+type QCOWImage struct {
+	QSDID          string
+	BackingImageID string
+	File           string
+	RefCount       int32
+	VolumeRef      string
+	Depth          uint32
+}
+
 type Server struct {
 	QsdServiceServer
 	qsdSock      string
@@ -242,9 +251,11 @@ func (c *Server) DeleteVolume(ctx context.Context, image *Image) (*Response, err
 		i.RefCount--
 		c.images[id] = i
 		// Remove the volume reference from the image
-		i, _ = c.images[image.ID]
-		i.VolumeRef = ""
-		c.images[image.ID] = i
+		i, ok = c.images[image.ID]
+		if ok {
+			i.VolumeRef = ""
+			c.images[image.ID] = i
+		}
 	}
 	delete(c.activeLayers, image.ID)
 	dir := fmt.Sprintf("%s/%s", imagesDir, image.ID)
@@ -336,7 +347,18 @@ func (c *Server) DeleteSnapshot(ctx context.Context, snapshot *Snapshot) (*Respo
 
 func (c *Server) ListVolumes(ctx context.Context, _ *ListVolumesParams) (*ResponseListVolumes, error) {
 	log.Infof("List the images")
+	var volumes []*Volume
+	for k, v := range c.images {
+		volumes = append(volumes, &Volume{
+			QSDID:          v.QSDID,
+			BackingImageID: v.BackingImageID,
+			File:           v.File,
+			RefCount:       v.RefCount,
+			Depth:          v.Depth,
+			VolumeRef:      k,
+		})
+	}
 	return &ResponseListVolumes{
-		Volumes: c.images,
+		Volumes: volumes,
 	}, nil
 }

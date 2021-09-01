@@ -33,15 +33,14 @@ message Response {
 }
 
 message ResponseListVolumes {
-//	repeated QCOWImage volumes = 1;
-	map<string, QCOWImage> volumes = 1;
+	repeated Volume volumes = 1;
 }
 
-message QCOWImage {
+message Volume {
         string QSDID = 1;      
         string BackingImageID = 2;
         string File = 3;
-        uint32 RefCount = 4;
+        int32 RefCount = 4; 
         string VolumeRef = 5;
-	uint32 Depth = 6;
+        uint32 Depth = 6;
 }
