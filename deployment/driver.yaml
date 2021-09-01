@@ -16,7 +16,7 @@ metadata:
 provisioner: qsd.csi.com
 reclaimPolicy: Delete
 allowVolumeExpansion: false
-volumeBindingMode: Immediate
+volumeBindingMode: WaitForFirstConsumer
 ---
 kind: DaemonSet
 apiVersion: apps/v1
