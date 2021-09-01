@@ -247,9 +247,6 @@ func (c *Server) DeleteVolume(ctx context.Context, image *Image) (*Response, err
 			return failed(errMessage, err)
 		}
 	} else {
-		// If the active layer is a snapshot then remove the count reference for the image
-		i.RefCount--
-		c.images[id] = i
 		// Remove the volume reference from the image
 		i, ok = c.images[image.ID]
 		if ok {
