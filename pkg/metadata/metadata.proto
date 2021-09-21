@@ -21,7 +21,7 @@ message Node {
 message Metadata {
   string ID = 1;
   string QSDID = 2;
-  uint32 RefCount = 3;
+  int64 RefCount = 3;
   string BackingImageID = 4;
   string Node = 5;
 }
