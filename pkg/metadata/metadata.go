@@ -14,17 +14,17 @@ import (
 )
 
 const (
-	nodeLabel         = "node"
+	NodeLabel         = "node"
 	prefixAnn         = "csi-qsd"
-	annID             = prefixAnn + "id"
-	annQSDID          = prefixAnn + "qsdID"
-	annBackingImageID = prefixAnn + "backingImageID"
-	annRefCount       = prefixAnn + "refCount"
+	AnnID             = prefixAnn + "/id"
+	AnnQSDID          = prefixAnn + "/qsdID"
+	AnnBackingImageID = prefixAnn + "/backingImageID"
+	AnnRefCount       = prefixAnn + "/refCount"
 )
 
 type MetadataServer struct {
 	MetadataServiceServer
-	client *kubernetes.Clientset
+	Client kubernetes.Interface
 }
 
 func newK8sClient(config *rest.Config) (*kubernetes.Clientset, error) {
@@ -64,26 +64,26 @@ func NewMetadataServer() (*MetadataServer, error) {
 		return nil, err
 	}
 	return &MetadataServer{
-		client: client,
+		Client: client,
 	}, err
 }
 
 func parseAnnotationsFromPVtoMetadata(pv corev1.PersistentVolume) (*Metadata, error) {
 	var err error
 	var refCount int64
-	id, okID := pv.ObjectMeta.Annotations[annID]
-	qsdID, okQsdID := pv.ObjectMeta.Annotations[annQSDID]
-	bID, okBID := pv.ObjectMeta.Annotations[annBackingImageID]
+	id, okID := pv.ObjectMeta.Annotations[AnnID]
+	qsdID, okQsdID := pv.ObjectMeta.Annotations[AnnQSDID]
+	bID, okBID := pv.ObjectMeta.Annotations[AnnBackingImageID]
 	if !okID {
-		return nil, fmt.Errorf("Annotation %s not found", annID)
+		return nil, fmt.Errorf("Annotation %s not found", AnnID)
 	}
 	if !okQsdID {
-		return nil, fmt.Errorf("Annotation %s not found", okQsdID)
+		return nil, fmt.Errorf("Annotation %s not found", AnnQSDID)
 	}
 	if !okBID {
 		bID = ""
 	}
-	r, okR := pv.ObjectMeta.Annotations[annRefCount]
+	r, okR := pv.ObjectMeta.Annotations[AnnRefCount]
 	if okR {
 		refCount, err = strconv.ParseInt(r, 10, 32)
 		if err != nil {
@@ -93,26 +93,27 @@ func parseAnnotationsFromPVtoMetadata(pv corev1.PersistentVolume) (*Metadata, er
 	return &Metadata{
 		ID:             id,
 		QSDID:          qsdID,
-		RefCount:       uint32(refCount),
+		RefCount:       refCount,
 		BackingImageID: bID,
 	}, nil
 }
 
 func (s *MetadataServer) GetVolumes(ctx context.Context, node *Node) (*ResponseGetVolumes, error) {
 	// Select PVs with the label of the node
-	labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{nodeLabel: node.GetNodeID()}}
+	labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{NodeLabel: node.GetNodeID()}}
 	options := metav1.ListOptions{
 		LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
 	}
-	pvList, err := s.client.CoreV1().PersistentVolumes().List(context.TODO(), options)
+	pvList, err := s.Client.CoreV1().PersistentVolumes().List(context.TODO(), options)
 	if err != nil {
 		return nil, err
 	}
 	var metadata []*Metadata
-	// Parse the annotations with the metadata information
+	// Parse the Annotations with the metadata information
 	for _, pv := range pvList.Items {
 		m, err := parseAnnotationsFromPVtoMetadata(pv)
 		if m != nil && err == nil {
+			m.Node = node.NodeID
 			metadata = append(metadata, m)
 		}
 	}
@@ -121,8 +122,33 @@ func (s *MetadataServer) GetVolumes(ctx context.Context, node *Node) (*ResponseG
 	}, nil
 }
 
-func (s *MetadataServer) AddMetadata(context.Context, *Metadata) (*ResponseAddMetadata, error) {
-	// Add label to the PV with the node where it has be created
-	// Add annotation from the metadata
-	return nil, nil
+func (s *MetadataServer) AddMetadata(_ context.Context, m *Metadata) (*ResponseAddMetadata, error) {
+	pv, err := s.Client.CoreV1().PersistentVolumes().Get(context.TODO(), m.ID, metav1.GetOptions{})
+	if err != nil {
+		return &ResponseAddMetadata{}, err
+	}
+	if pv.ObjectMeta.Labels == nil {
+		pv.ObjectMeta.Labels = make(map[string]string)
+	}
+
+	v, ok := pv.ObjectMeta.Labels[NodeLabel]
+	if !ok {
+		pv.ObjectMeta.Labels[NodeLabel] = m.Node
+	} else if v != m.Node {
+		return &ResponseAddMetadata{}, fmt.Errorf("Requested node %s and node label on the PV %s don't match", v, m.Node)
+	}
+	if pv.ObjectMeta.Annotations == nil {
+		pv.ObjectMeta.Annotations = make(map[string]string)
+	}
+
+	pv.ObjectMeta.Annotations[AnnID] = m.ID
+	pv.ObjectMeta.Annotations[AnnQSDID] = m.QSDID
+	pv.ObjectMeta.Annotations[AnnBackingImageID] = m.BackingImageID
+	pv.ObjectMeta.Annotations[AnnRefCount] = strconv.FormatInt(m.RefCount, 10)
+
+	if _, err := s.Client.CoreV1().PersistentVolumes().Update(context.TODO(), pv, metav1.UpdateOptions{}); err != nil {
+		return &ResponseAddMetadata{}, err
+	}
+
+	return &ResponseAddMetadata{}, nil
 }
