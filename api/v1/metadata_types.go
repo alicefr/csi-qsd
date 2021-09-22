@@ -20,15 +20,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// MetadataSpec defines the desired state of Metadata
+// MetadataSpec defines the fields of the metadata information
 type MetadataSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Metadata. Edit metadata_types.go to remove/update
-	PVReference        string `json:"pvReference"`
-	BackingPVReference string `json:backingPVReference,omitempty`
-	RefCount           int64  `json:refCount,omitempty`
+	// PVReference indicates the PV
+	PVReference string `json:"pvReference"`
+	// BackingPVReference refers to the backing PV
+	BackingPVReference string `json:"backingPVReference,omitempty"`
+	// RefCount is the counter for the volumes that refers to this PV
+	RefCount int64 `json:"refCount,omitempty"`
 }
 
 // MetadataStatus defines the observed state of Metadata
@@ -45,8 +47,8 @@ type Metadata struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   MetadataSpec   `json:"spec,omitempty"`
-	Status MetadataStatus `json:"status,omitempty"`
+	Spec MetadataSpec `json:"spec,omitempty"`
+	//Status MetadataStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
