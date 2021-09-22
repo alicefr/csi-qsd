@@ -1,0 +1,192 @@
+# Definition of CSI driver for QSD
+apiVersion: storage.k8s.io/v1beta1
+kind: CSIDriver
+metadata:
+  name: qsd.csi.com
+spec:
+ attachRequired: false
+ podInfoOnMount: true 
+ volumeLifecycleModes: #  volume modes supported by the driver.
+  - Persistent
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: csi-qsd
+provisioner: qsd.csi.com
+reclaimPolicy: Delete
+allowVolumeExpansion: false
+volumeBindingMode: WaitForFirstConsumer
+---
+kind: DaemonSet
+apiVersion: apps/v1
+metadata:
+  name: csi-qsd-node
+  namespace: csi-qsd
+spec:
+  selector:
+    matchLabels:
+      app: csi-qsd-node
+  template:
+    metadata:
+      labels:
+        app: csi-qsd-node
+        role: csi-qsd
+    spec:
+      priorityClassName: system-node-critical
+      serviceAccount: csi-qsd-node-sa
+      containers:
+        - name: csi-node-driver-registrar
+          image: quay.io/k8scsi/csi-node-driver-registrar:v2.0.1
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+            - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/qsd.csi.com/csi.sock
+          volumeMounts:
+          - name: plugin-dir
+            mountPath: /csi/
+          - name: registration-dir
+            mountPath: /registration/
+        - name: csi-provisioner
+          image: quay.io/k8scsi/csi-provisioner:v2.0.4
+          args:
+          - "--csi-address=$(ADDRESS)"
+          - "--default-fstype=ext4"
+          - "--v=5"
+          env:
+          - name: ADDRESS
+            value: /csi/csi.sock
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+          - name: plugin-dir
+            mountPath: /csi/
+        - name: csi-snapshotter
+          image: quay.io/k8scsi/csi-snapshotter:v4.0.0
+          args:
+            - "--csi-address=$(ADDRESS)"
+            - "--v=5"
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+        - name: driver
+          image: qsd/driver:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - "/usr/bin/driver"
+          args :
+            - "-node-id=$(KUBE_NODE_NAME)"
+            - "-endpoint=$(CSI_ENDPOINT)"
+            - "-port=$(QSD_PORT)"
+          env:
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix:///csi/csi.sock
+            - name: QSD_PORT
+              value: "4444"
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          volumeMounts:
+           - name: plugin-dir
+             mountPath: /csi
+             mountPropagation: "Bidirectional"
+           - name: mountpoint-dir
+             mountPath: /var/lib/kubelet/pods
+             mountPropagation: "Bidirectional"
+           - name: sockets
+             mountPath: /var/run/qsd/sockets
+      volumes:
+        - name: mountpoint-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+        # Directory for the plugin registration
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry/
+            type: DirectoryOrCreate
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/qsd.csi.com
+            type: DirectoryOrCreate
+        - name: sockets
+          hostPath:
+            path: /var/run/qsd/sockets
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: csi-qsd-node-sa
+  namespace: csi-qsd
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-qsd-node
+  namespace: csi-qsd
+rules:
+  - apiGroups: [""]
+    resources: ["persistentvolumes"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch"]
+    verbs: ["get", "list", "update", "patch"]
+  - apiGroups: [ "storage.k8s.io" ]
+    resources: [ "csinodes" ]
+    verbs: [ "get", "list", "watch" ]
+  - apiGroups: [ "" ]
+    resources: [ "nodes" ]
+    verbs: [ "get", "list", "watch" ]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["volumeattachments", "volumeattachments/status"]
+    verbs: ["get", "list", "watch","update", "patch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots"]
+    verbs: ["get", "list"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents"]
+    verbs: ["create", "get", "list", "watch", "update", "delete", "patch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents/status"]
+    verbs: ["update"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["list", "watch", "create", "update", "patch"]    
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-qsd-node
+subjects:
+  - kind: ServiceAccount
+    name: csi-qsd-node-sa
+    namespace: csi-qsd
+roleRef:
+  kind: ClusterRole
+  name: csi-qsd-node
+  apiGroup: rbac.authorization.k8s.io

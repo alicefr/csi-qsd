@@ -1,0 +1,7 @@
+apiVersion: csi.qsd.csi.qsd/v1
+kind: Metadata
+metadata:
+  name: metadata-sample
+spec:
+  # Add fields here
+  foo: bar

@@ -1,0 +1,16 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+runtimeConfig:
+  "api/alpha": "true"
+nodes:
+- role: control-plane
+  # add a mount from /path/to/my/files on the host to /files on the node
+  extraMounts:
+  - hostPath: /dev/kvm
+    containerPath: /dev/kvm
+  - hostPath: /usr/lib/modules
+    containerPath: /usr/lib/modules
+  - hostPath: /tmp/kind-cluster-test
+    containerPath: /var/run/qsd/images
+featureGates:
+  VolumeSnapshotDataSource: true

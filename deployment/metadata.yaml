@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metadata
+  labels:
+    app: metadata
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: metadata
+  template:
+    metadata:
+      labels:
+        app: metadata
+    spec:
+      containers:
+      - name: metadata
+        imagePullPolicy: IfNotPresent
+        image: docker.io/qsd/metadata:latest
+        command: ["/usr/bin/metadata"]
+        args: ["-port", "80"]
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: metadata
+  labels:
+    run: metadata
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+  selector:
+    run: metadata
