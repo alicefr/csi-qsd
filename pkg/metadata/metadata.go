@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"strconv"
 
+	metadatav1 "github.com/alicefr/csi-qsd/pkg/metadata/api/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -21,6 +23,8 @@ const (
 	AnnBackingImageID = prefixAnn + "/backingImageID"
 	AnnRefCount       = prefixAnn + "/refCount"
 )
+
+var c client.Client
 
 type MetadataServer struct {
 	MetadataServiceServer
@@ -151,4 +155,11 @@ func (s *MetadataServer) AddMetadata(_ context.Context, m *Metadata) (*ResponseA
 	}
 
 	return &ResponseAddMetadata{}, nil
+}
+
+func CreateMetadataCRD() error {
+	// TODO Create k8s client for the Metadata crd
+	metadata := &metadatav1.Metadata{}
+	_ = c.Create(context.Background(), metadata)
+	return nil
 }
