@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package alicefr.csi.pkg.qsd;
+option go_package = "github.com/alicefr/csi-qsd/pkg/metadata";
+
+service MetadataService {
+        rpc GetVolumes(Node) returns (ResponseGetVolumes) {}
+        rpc AddMetadata(Metadata) returns (ResponseAddMetadata) {}
+}
+
+message ResponseAddMetadata {}
+
+message ResponseGetVolumes{
+	repeated Metadata volumes = 1;
+}
+
+message Node {
+  string NodeID = 1;
+}
+
+message Metadata {
+  string ID = 1;
+  string QSDID = 2;
+  int64 RefCount = 3;
+  string BackingImageID = 4;
+  string Node = 5;
+}
+

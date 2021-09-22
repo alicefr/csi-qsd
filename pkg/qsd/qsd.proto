@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package alicefr.csi.pkg.qsd;
+option go_package = "github.com/alicefr/csi-qsd/pkg/qsd";
+
+service QsdService {
+	rpc CreateVolume(Image) returns (Response) {}
+	rpc ExposeVhostUser(Image) returns (Response) {}
+	rpc DeleteVolume(Image) returns (Response) {}
+	rpc DeleteExporter(Image) returns (Response) {}
+	rpc CreateSnapshot(Snapshot) returns (Response) {}
+	rpc DeleteSnapshot(Snapshot) returns (Response) {}
+	rpc ListVolumes(ListVolumesParams) returns (ResponseListVolumes) {}
+}
+
+message Image {
+	string ID = 1 ;
+	int64 size = 2;
+	string FromVolume = 3;
+	
+}
+
+message Snapshot {
+	string ID = 1;
+	string SourceVolumeID = 2;
+}
+
+message ListVolumesParams {}
+
+message Response {
+  bool success = 1;
+  string message = 2;
+}
+
+message ResponseListVolumes {
+	repeated Volume volumes = 1;
+}
+
+message Volume {
+        string QSDID = 1;      
+        string BackingImageID = 2;
+        string File = 3;
+        int32 RefCount = 4; 
+        string VolumeRef = 5;
+        uint32 Depth = 6;
+}
