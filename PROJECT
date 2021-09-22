@@ -1,8 +1,8 @@
 domain: csi.qsd
 layout:
 - go.kubebuilder.io/v3
-projectName: csi-qsd-kubebuilder
-repo: github.com/alicefr/csi-qsd-kubebuilder
+projectName: csi-qsd
+repo: github.com/alicefr/csi-qsd
 resources:
 - api:
     crdVersion: v1
@@ -10,6 +10,6 @@ resources:
   domain: csi.qsd
   group: csi.qsd
   kind: Metadata
-  path: github.com/alicefr/csi-qsd-kubebuilder/api/v1
+  path: github.com/alicefr/csi-qsd/api/v1
   version: v1
 version: "3"
