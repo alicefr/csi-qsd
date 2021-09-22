@@ -20,7 +20,7 @@ endif
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
-GEN_FILE_PATH=github.com/alicefr/csi-qsd/api/v1
+GEN_FILE_PATH=github.com/alicefr/csi-qsd/pkg/metadata/api/v1
 
 .PHONY: build
 build:
