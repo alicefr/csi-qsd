@@ -20,6 +20,7 @@ endif
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
+GEN_FILE_PATH=github.com/alicefr/csi-qsd/api/v1
 
 .PHONY: build
 build:
@@ -52,11 +53,11 @@ generate: controller-gen
 	protoc --go_out=. --go_opt=paths=source_relative  --go-grpc_out=. --go-grpc_opt=paths=source_relative  --experimental_allow_proto3_optional \
 	pkg/qsd/qsd.proto \
 	pkg/metadata/metadata.proto
-	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="$(GEN_FILE_PATH)"
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="$(GEN_FILE_PATH)" output:crd:artifacts:config=config/crd/bases
 
 
 
